@@ -70,13 +70,16 @@ def main():
     parser.add_argument('--y',
                         help='year',
                         nargs='+',
+                        type=int,
                         default=[2021, 2022])
     parser.add_argument('--m',
                         help='months',
                         nargs='+',
+                        type=int,
                         default=[0,1,2,3,4])
     parser.add_argument('--sp',
                         help='save path',
+                        type=str,
                         default='/scratch/descourt/pageviews')
 
     args = parser.parse_args()
