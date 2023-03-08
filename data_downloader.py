@@ -1,9 +1,6 @@
 import threading
 from queue import Queue
-import sys, time
-import pandas as pd
 import requests
-import cProfile
 import time
 
 import os
