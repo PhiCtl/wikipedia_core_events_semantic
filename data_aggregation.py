@@ -29,7 +29,7 @@ def setup_data(years, months, path="/scratch/descourt/pageviews", project='en'):
         print(f"Loading {f_n}")
         df = spark.read.csv(f_n, sep=r' ')
         return df.selectExpr("_c0 as project", "_c1 as page", "_c2 as null", "_c3 as access_type", "_c4 as count",
-                             "_c5 as idontknow").withColumn('date', lit(date)).withColumn("date", to_date("date", 'yyyy-MM'))
+                             "_c5 as idontknow").withColumn('date', lit(date))
 
     files_names = [os.path.join(path, f"pageviews-{year}{month}-user.bz2") for year in years for month in months]
     dates = [f"{year}-{month}" for year in years for month in months]
