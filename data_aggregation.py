@@ -37,6 +37,7 @@ def setup_data(years, months, path="/scratch/descourt/pageviews", project='en'):
     start = time.time()
     dfs = [read_file(f, d) for f, d in zip(files_names, dates)]
     df = reduce(DataFrame.unionAll, dfs)
+    df.withColumn("date", to_date("date", 'yyyy-MM'))
     print(f"Elapsed time {time.time() - start} s")
     return df
 
