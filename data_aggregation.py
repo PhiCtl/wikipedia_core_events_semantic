@@ -26,7 +26,7 @@ def setup_data(years, months, path="/scratch/descourt/pageviews", project='en'):
     """
 
     def read_file(f_n, date):
-        print(f"Loading {f_n}")
+        print(f"loading {f_n}")
         df = spark.read.csv(f_n, sep=r' ')
         return df.selectExpr("_c0 as project", "_c1 as page", "_c2 as null", "_c3 as access_type", "_c4 as count",
                              "_c5 as idontknow").withColumn('date', lit(date))
@@ -94,7 +94,6 @@ def main():
 
     dfs = setup_data(years=args.y, months=months)
     df_filt = filter_data(dfs, 'en.wikipedia', ['main_page', 'special:search', '-'], dates=dates)
-    df_filt = df_filt.cache()
 
     df_agg = aggregate_data(df_filt)
     df_agg.write.parquet(os.path.join(args.save_path, "pageviews_agg.parquet"))
