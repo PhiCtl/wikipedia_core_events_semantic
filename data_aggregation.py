@@ -19,7 +19,7 @@ spark = SparkSession.builder.config(conf=conf).getOrCreate()
 sc = spark.sparkContext
 
 
-def setup_data(years, months, path="/scratch/descourt/pageviews", project='en'):
+def setup_data(years, months, path="/scratch/descourt/pageviews"):
     """
     Load and prepare wikipedia projects pageviews data for given year and month
     :return pyspark dataframe
@@ -39,16 +39,22 @@ def setup_data(years, months, path="/scratch/descourt/pageviews", project='en'):
     print(f"Elapsed time {time.time() - start} s")
     return df
 
+def specials(project):
+    if project == 'en.wikipedia':
+        return ['main_page', 'special:search', '-']
+    elif project == 'fr.wikipedia':
+        # TODO check
+        return ['wikipédia:accueil_principal', '-', 'spécial:recherche']
 
-def filter_data(df, project, specials, dates):
+def filter_data(df, project, dates):
     """
     Filter in wanted data from initial dataframe
     """
-
+    specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
                 .filter(df.date.isin(dates)) \
                 .select(lower(col('page')).alias('page'), 'project', 'count', 'date')
-    df_filt = df_filt.filter(~df_filt.page.isin(specials))
+    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt))
 
     return df_filt
 
@@ -85,6 +91,10 @@ def main():
     parser.add_argument('--save_path',
                         type=str,
                         default="/scratch/descourt/processed_data")
+    parser.add_argument('--project',
+                        type=str,
+                        default='en.wikipedia',
+                        help="Project to process")
 
     args = parser.parse_args()
     os.makedirs(args.save_path, exist_ok=True)
@@ -93,10 +103,10 @@ def main():
     dates = [f"{year}-{month}" for year in args.y for month in months]
 
     dfs = setup_data(years=args.y, months=months)
-    df_filt = filter_data(dfs, 'en.wikipedia', ['main_page', 'special:search', '-'], dates=dates)
+    df_filt = filter_data(dfs, args.project, dates=dates)
 
     df_agg = aggregate_data(df_filt)
-    df_agg.write.parquet(os.path.join(args.save_path, "pageviews_agg.parquet"))
+    df_agg.write.parquet(os.path.join(args.save_path, f"pageviews_agg_{args.project}.parquet"))
 
     print("Done")
 
