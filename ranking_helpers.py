@@ -80,9 +80,10 @@ def compute_overlaps(df, offset=1, slicing=5000):
     return df_overlaps
 
 
-def slice_comparison(df, dates, mapping):
+def slice_comparison(df, dates, mapping, title="between consecutive periods of 2 months"):
     """
     Plot overlap for several dates over rank ranges
+    :param title: title completion
     :param df:
     :param dates: dates (or date ranges if dates are binned) to select
     :param mapping: to convert dates or date ranges into readable legends
@@ -92,11 +93,11 @@ def slice_comparison(df, dates, mapping):
     df_plot['date_range'].replace(mapping, inplace=True)
     df_plot = df_plot.pivot(index='rank_range', columns='date_range', values='overlap')
     plt.figure()
-    df_plot.plot(logx=True, logy=True, colormap='Paired')
-    plt.xlabel('Log Rank range')
-    plt.ylabel('Log normalized overlap between two series in %')
+    df_plot.plot(colormap='Paired')
+    plt.xlabel('Rank range')
+    plt.ylabel('Overlap between two series in %')
     plt.xticks()
     plt.yticks()
-    plt.title("Normalized percentage overlap between consecutive periods of 2 months per rank range")
+    plt.title(f"Normalized percentage overlap {title} per rank range")
     plt.legend(bbox_to_anchor=(1.3, 1), title="date range")
     plt.show()
