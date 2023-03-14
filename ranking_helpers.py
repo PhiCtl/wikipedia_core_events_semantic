@@ -14,6 +14,10 @@ from pyspark.ml.feature import Bucketizer
 def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date'):
     """
     Bin ranking into rank ranges, eg. top 0 to 5K -> bin 0, top 5k to 10k -> bin 1, etc..
+    :param df : pyspark dataFrame
+    :param lim: fixed number of items to retrieve, eg. top 100K pageviews
+    :param slicing: discretization of rankings into slices, eg. top 0 - 5000 -> bin 0
+    :param subset: on which time subset to group for total views count aggregation (can be date_range)
     """
 
     # Top lim rank pages for each date range
@@ -31,6 +35,10 @@ def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date'):
 def compute_consecutive_bins(df, lim=100000, slicing=5000, nb_bin_dates=3):
     """
     Bin dates into dates ranges, eg. 2020-{01, 02, 03} -> bin 0, 2020-{04, 05, 06} -> bin 1, etc..
+    :param df : pyspark dataFrame
+    :param lim: fixed number of items to retrieve, eg. top 100K pageviews
+    :param slicing: discretization of rankings into slices, eg. top 0 - 5000 -> bin 0
+    :param nb_bin_dates : number of dates categories we want to bin data into
     """
 
     # Bin dates
@@ -51,6 +59,8 @@ def compute_overlaps(df, offset=1, slicing=5000):
     """
     Compute overlaps of pages in given rank range between two dates bins
     Eg. overlap of pages in top 0 to 5K between period
+    :param offset: in months. Eg. offset of 2 means we'll compute intersection between Jan and Mar, Feb and Apr, Mar and May, ...
+    :param slicing: rank size of slices, see compute_consecutive_bins
     """
 
     # Group by date and rank bins set of pages
@@ -71,6 +81,13 @@ def compute_overlaps(df, offset=1, slicing=5000):
 
 
 def slice_comparison(df, dates, mapping):
+    """
+    Plot overlap for several dates over rank ranges
+    :param df:
+    :param dates: dates (or date ranges if dates are binned) to select
+    :param mapping: to convert dates or date ranges into readable legends
+    :return:
+    """
     df_plot = df.filter(df.date_range.isin(dates)).toPandas()
     df_plot['date_range'].replace(mapping, inplace=True)
     df_plot = df_plot.pivot(index='rank_range', columns='date_range', values='overlap')

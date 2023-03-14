@@ -106,7 +106,7 @@ def main():
     df_filt = filter_data(dfs, args.project, dates=dates)
 
     df_agg = aggregate_data(df_filt)
-    df_agg.write.parquet(os.path.join(args.save_path, f"pageviews_agg_{args.project}.parquet"))
+    df_agg.write.parquet(os.path.join(args.save_path, f"pageviews_agg_{args.project}_{'_'.join(args.y)}.parquet"))
 
     print("Done")
 
