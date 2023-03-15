@@ -54,7 +54,7 @@ def filter_data(df, project, dates):
     df_filt = df.where(f"project = '{project}'") \
                 .filter(df.date.isin(dates)) \
                 .select(lower(col('page')).alias('page'), 'project', 'count', 'date')
-    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt))
+    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt) & ~df_filt.page.contains(":"))
 
     return df_filt
 
