@@ -101,3 +101,79 @@ def slice_comparison(df, dates, mapping, title="between consecutive periods of 2
     plt.title(f"Normalized percentage overlap {title} per rank range")
     plt.legend(bbox_to_anchor=(1.3, 1), title="date range")
     plt.show()
+
+def compute_merged_overlaps(df, offsets, slicing):
+    """
+    Compute overlaps of pages in given rank range between two dates bins
+    Eg. overlap of pages in top 0 to 5K between period
+    :param offset: in months. Eg. offsets of [1,2] means we'll compute intersection between Jan Feb March top pages content
+    :param slicing: rank size of slices, see compute_consecutive_bins
+    Is computationally intensive I guess
+    """
+
+    # Aggregate page views per rank range and date
+    df_sets = df.groupBy("date_range", "rank_range") \
+        .agg(collect_set("page").alias("ranked_pages"))
+
+    # Store comparison pages set
+    for offset in offsets:
+        df_sets = df_sets.withColumn(f"prev_ranked_pages_{offset}", lag("ranked_pages", offset=offset).over(
+            Window.partitionBy("rank_range").orderBy("date_range")))
+    # Store results
+    df_overlaps = df_sets.withColumn("overlap", col("ranked_pages"))
+
+    # Compute intersections
+    cols = [f"prev_ranked_pages_{offset}" for offset in offsets]
+    for col_ in cols:
+        df_overlaps = df_overlaps.withColumn("overlap", array_intersect("overlap", col_))
+    # Compute exception
+    cols = cols + ["ranked_pages"]
+    for col_ in cols:
+        df_overlaps = df_overlaps.withColumn(col_, array_except(col_, "overlap"))
+
+    # Compute overlap percentage
+    df_overlaps = df_overlaps.withColumn("overlap_size", size("overlap") / slicing * 100).dropna(subset=cols)
+
+    return df_overlaps
+
+
+def compute_overlap_evolution(df, start_date, end_date, rank_range, slicing=5000):
+    """
+    For a given date, compute intersection of this date top rank_range pages
+    with other prev and following dates top rank_range pages
+    :param df: Pyspark dataframe
+    :param start_date: date which top rank_range pages will be compared to other months
+    :param end_date: actually useless parameter
+    :param rank_range: select rank range of interest
+    :param slicing: slices sizes
+    :return: rolling window (Pyspark dataframe) of given date slice intersection
+    """
+    # Select rank slices for all dates up to end_date
+    df_filt = df.filter(df.date <= end_date).where(df.rank_range == rank_range)
+
+    # Compute pages sets for all dates
+    df_sets = df_filt.groupBy("date", "rank_range") \
+        .agg(collect_set("page").alias("ranked_pages"))
+    slice_of_interest = df_sets.where(df.date == start_date).select("ranked_pages").collect()[0]["ranked_pages"]
+    df_sets = df_sets.withColumn("comparison_set", array([lit(x) for x in slice_of_interest]))
+    # Compute intersection
+    df_overlaps = df_sets.select("date",
+                                 "rank_range",
+                                 (array_intersect("ranked_pages", "comparison_set")).alias("overlap"))
+
+    df_overlaps = df_overlaps.withColumn("overlap_size", size("overlap") / slicing * 100)
+    return df_overlaps
+
+
+def rank_turbulence_divergence(rks, N1, N2, alpha):
+    N = (alpha + 1) / alpha * (
+                ((1.0 / rks['r1'] ** alpha - 1 / (N1 + 0.5 * N2) ** alpha).abs() ** (1 / (alpha + 1))).sum() \
+ \
+                + ((-1.0 / rks['r2'] ** alpha + 1 / (N2 + 0.5 * N1) ** alpha).abs() ** (1 / (alpha + 1))).sum())
+
+    rks['ind_D'] = (alpha + 1) / (N * alpha) * ((1 / rks['r1'] ** alpha - 1 / rks['r2'] ** alpha).abs()) ** (
+                1 / (alpha + 1))
+
+    D = rks['ind_D'].sum()
+
+    return D
