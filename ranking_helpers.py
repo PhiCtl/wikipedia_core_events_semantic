@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
+from functools import reduce
 
 from pyspark.sql import *
 from pyspark.sql.functions import *
@@ -9,6 +10,11 @@ import pyspark
 from pyspark.sql.window import Window
 from pyspark.ml.feature import QuantileDiscretizer
 from pyspark.ml.feature import Bucketizer
+
+def merge_outer(df1, df2):
+    return pd.merge(df1, df2, how='outer')
+def merge_index(df1, df2):
+    return pd.merge(df1, df2, left_index=True, right_index=True)
 
 
 def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date'):
@@ -27,6 +33,23 @@ def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date'):
 
     # Bin ranges
     bucketizer = Bucketizer(splits=[i for i in range(0, lim, slicing)] + [lim], inputCol="rank", outputCol="rank_range")
+    df_buck = bucketizer.transform(df_lim)
+
+    return df_buck
+
+def compute_freq_bins(df, lim=100000, nb_bins=3, subset='date', max_views=10000000, min_views=5000):
+    """
+    Bin tot_count_views into rank ranges, eg.
+    """
+
+    # Top lim rank pages for each date range
+    window = Window.partitionBy(subset).orderBy(col("tot_count_views").desc())
+    df_lim = df.withColumn("rank", row_number().over(window))
+    df_lim = df_lim.where(col("rank") <= lim)
+
+    # Bin ranges
+    views_bins = [i for i in range(min_views, max_views, int((max_views - min_views) / nb_bins))]
+    bucketizer = Bucketizer(splits=views_bins + [float("inf")], inputCol="tot_count_views", outputCol="freq_bins")
     df_buck = bucketizer.transform(df_lim)
 
     return df_buck
@@ -165,15 +188,44 @@ def compute_overlap_evolution(df, start_date, end_date, rank_range, slicing=5000
     return df_overlaps
 
 
-def rank_turbulence_divergence(rks, N1, N2, alpha):
+def rank_turbulence_divergence_pd(rks, d1, d2, N1, N2, alpha):
+    """
+    Compute rank turbulence divergence between date d1 and d2 for pages in rks
+    :param rks: dataframe with columns d1 and d2
+    :param d1: string date 1 in format YYYY-MM
+    :param d2: string date 2 in format YYYY-MM
+    :param N1: number of elements at d1
+    :param N2: number of elements at d2
+    :param alpha: hyper parameter for divergence computation
+    """
     N = (alpha + 1) / alpha * (
-                ((1.0 / rks['r1'] ** alpha - 1 / (N1 + 0.5 * N2) ** alpha).abs() ** (1 / (alpha + 1))).sum() \
- \
-                + ((-1.0 / rks['r2'] ** alpha + 1 / (N2 + 0.5 * N1) ** alpha).abs() ** (1 / (alpha + 1))).sum())
+            ((1.0 / rks[d1] ** alpha - 1 / (N1 + 0.5 * N2) ** alpha).abs() ** (1 / (alpha + 1))).sum() + ((-1.0 / rks[d2] ** alpha + 1 / (N2 + 0.5 * N1) ** alpha).abs() ** (1 / (alpha + 1))).sum())
 
-    rks['ind_D'] = (alpha + 1) / (N * alpha) * ((1 / rks['r1'] ** alpha - 1 / rks['r2'] ** alpha).abs()) ** (
+    rks[f'div_{d2}'] = (alpha + 1) / (N * alpha) * ((1 / rks[d1] ** alpha - 1 / rks[d2] ** alpha).abs()) ** (
                 1 / (alpha + 1))
 
-    D = rks['ind_D'].sum()
 
-    return D
+def augment_div(df, rg_rk, dates, df_ranks):
+    """
+    Augment divergence dataframe with other statistics
+    :param df: divergence dataframe
+    :param rg_rk: ranks bucket number (ie. 0, 1, etc...)
+    :param dates: selected dates for analysis in format YYYY-MM
+    :param df_ranks: ranks dataframe
+    """
+    div_dates = [f"div_{d}" for d in dates]
+
+    df_ranks_filt = df_ranks.where(df_ranks.rank_range == rg_rk).groupby('page').pivot('date').sum('rank').toPandas()
+
+    med_divs = df.set_index('page')[div_dates].mean(axis=1)
+    med_divs.name = 'avg_divs'
+    std_divs = (df.set_index('page'))[div_dates].std(axis=1)
+    std_divs.name = 'std_divs'
+    med_ranks = df_ranks_filt.set_index('page')[dates].mean(axis=1)
+    med_ranks.name = 'avg_ranks'
+    nb_null = df_ranks_filt.set_index('page')[dates].isnull().sum(axis=1)
+    nb_null.name = 'nb_null'
+    std_ranks = df_ranks_filt.set_index('page')[dates].std(axis=1)
+    std_ranks.name = 'std_ranks'
+
+    return reduce(merge_index, [med_divs, std_divs, med_ranks, std_ranks, nb_null])

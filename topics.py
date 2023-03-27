@@ -1,11 +1,30 @@
 import pandas as pd
 from ast import literal_eval
+import gzip
+import os
+import json
+from tqdm import tqdm
+
+"""
+Temporary file with code to gzip json files
+"""
+
+def zip_json(dir_, dir_out):
+    ls_dirs = os.listdir(dir_)
+
+    for subdir in tqdm(ls_dirs):
+        for file in os.listdir(os.path.join(dir_, subdir)):
+            path_in = os.path.join(dir_, subdir, file)
+            with open(path_in, 'r') as f:
+                data = f.read().replace('\n', ',')
+                data = literal_eval(data)
+            os.makedirs(os.path.join(dir_out, subdir), exist_ok=True)
+            path_out = os.path.join(dir_out, subdir, file)
+            with gzip.open(path_out + ".json.gz", 'wt', encoding='utf-8') as f:
+                json.dump(data, f)
 
 if __name__ == '__main__':
 
-    df_topics = pd.read_csv("/home/descourt/topic_embeddings/topics_enwiki.tsv.zip",
-                            sep='\t')
-    df_topics['topics'] = df_topics['topics'].apply(
-        lambda st: [literal_eval(s.strip())['topic'] for s in st[1:-1].split("\n")])
-    df_topics['page_title'] = df_topics['page_title'].apply(lambda p: p.lower() if isinstance(p, str) else p)
-    df_topics.to_csv('/home/descourt/topic_embeddings/topics-enwiki-20230320.csv.gzip', compression='gzip')
+    dir_ = "/scratch/descourt/wiki_dumps/extracted"
+    dir_out = "/scratch/descourt/wiki_dumps/extracted_zip"
+    zip_json(dir_, dir_out)
