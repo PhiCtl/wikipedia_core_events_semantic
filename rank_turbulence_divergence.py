@@ -64,9 +64,11 @@ if __name__ == '__main__':
 
     # 1. consider date per date
     months = months = [str(m + 1) if (m + 1) / 10 >= 1 else f"0{m + 1}" for m in range(12)]
-    dates = [f"{y}-{m}" for y in ['2019', '2020'] for m in months][:4]
+    dates = [f"{y}-{m}" for y in ['2019', '2020'] for m in months]
 
     for i in tqdm(range(len(dates) - 1)):
+
+        print(f"Processing {dates[i]}-{dates[i+1]}")
 
         d1 = dates[i]
         d2 = dates[i + 1]
