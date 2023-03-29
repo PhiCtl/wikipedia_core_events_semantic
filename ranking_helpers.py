@@ -34,7 +34,7 @@ def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date', log=False):
     # Bin ranges
     sp = [i for i in range(0, lim, slicing)] + [lim]
     if log:
-        sp = [np.pow(10, i) for i in range(10)]
+        sp = [np.power(10, i) for i in range(10)]
     bucketizer = Bucketizer(splits=sp, inputCol="rank", outputCol="rank_range")
     df_buck = bucketizer.transform(df_lim)
 
