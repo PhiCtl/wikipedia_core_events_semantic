@@ -17,7 +17,7 @@ def merge_index(df1, df2):
     return pd.merge(df1, df2, left_index=True, right_index=True)
 
 
-def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date'):
+def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date', log=False):
     """
     Bin ranking into rank ranges, eg. top 0 to 5K -> bin 0, top 5k to 10k -> bin 1, etc..
     :param df : pyspark dataFrame
@@ -32,7 +32,10 @@ def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date'):
     df_lim = df_lim.where(col("rank") <= lim)
 
     # Bin ranges
-    bucketizer = Bucketizer(splits=[i for i in range(0, lim, slicing)] + [lim], inputCol="rank", outputCol="rank_range")
+    sp = [i for i in range(0, lim, slicing)] + [lim]
+    if log:
+        sp = [pow(10, i) for i in range(10)]
+    bucketizer = Bucketizer(splits=sp, inputCol="rank", outputCol="rank_range")
     df_buck = bucketizer.transform(df_lim)
 
     return df_buck
