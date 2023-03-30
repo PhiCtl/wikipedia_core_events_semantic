@@ -202,9 +202,10 @@ def rank_turbulence_divergence_pd(rks, d1, d2, N1, N2, alpha):
     :param alpha: hyper parameter for divergence computation
     """
     N = (alpha + 1) / alpha * (
-            ((1.0 / rks[d1] ** alpha - 1 / (N1 + 0.5 * N2) ** alpha).abs() ** (1 / (alpha + 1))).sum() + ((-1.0 / rks[d2] ** alpha + 1 / (N2 + 0.5 * N1) ** alpha).abs() ** (1 / (alpha + 1))).sum())
+            ((1.0 / rks.loc[~rks[d1].isnull(), d1] ** alpha - 1 / (N1 + 0.5 * N2) ** alpha).abs() ** (1 / (alpha + 1))).sum()
+          + ((-1.0 / rks.loc[~rks[d2].isnull(), d2] ** alpha + 1 / (N2 + 0.5 * N1) ** alpha).abs() ** (1 / (alpha + 1))).sum())
 
-    rks[f'div_{d2}'] = (alpha + 1) / (N * alpha) * ((1 / rks[d1] ** alpha - 1 / rks[d2] ** alpha).abs()) ** (
+    rks[f'div_{d2}'] = (alpha + 1) / (N * alpha) * ((1 / rks[d1 + '_nn'] ** alpha - 1 / rks[d2 + '_nn'] ** alpha).abs()) ** (
                 1 / (alpha + 1))
 
 
