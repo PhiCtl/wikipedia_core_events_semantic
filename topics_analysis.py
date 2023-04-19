@@ -1,6 +1,19 @@
 import plotly.graph_objs as go
 from ipywidgets import interactive, HBox, VBox
 import plotly.offline as py
+import pandas as pd
+
+def import_topics(path="/home/descourt/topic_embeddings/topics-enwiki-20230320-parsed.csv.gzip"):
+
+    df_topics = pd.read_csv(path,
+                            compression='gzip', index_col=0)
+    df_topics['topics'] = df_topics['topics'].apply(
+        lambda l: [x.lower().strip().replace("'", '') for x in l[1:-1].split(",")])
+    df_topics['topics_unique'] = df_topics['topics'].apply(lambda l: l[0])
+    df_topics['weight'] = df_topics['topics'].apply(lambda l: 1 / len(l))
+    df_topics['page_title'] = df_topics['page_title'].apply(lambda p: str(p))
+    df_topics = df_topics.explode('topics')
+    return df_topics
 
 
 def plot_topics_pies(df, colors, group='date', path=None):
