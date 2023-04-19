@@ -40,6 +40,15 @@ def compute_ranks_bins(df, lim=100000, slicing=5000, subset='date', log=False):
 
     return df_buck
 
+def compute_ranks(df, lim, subset='date'):
+    # Top lim rank pages for each date range
+    window = Window.partitionBy(subset).orderBy(col("tot_count_views").desc())
+    df_lim = df.withColumn("rank", row_number().over(window))
+    df_lim = df_lim.where(col("rank") <= lim)
+
+    return df_lim
+
+
 def compute_freq_bins(df, lim=100000, nb_bins=3, subset='date', max_views=10000000, min_views=5000):
     """
     Bin tot_count_views into rank ranges, eg.
@@ -207,6 +216,36 @@ def rank_turbulence_divergence_pd(rks, d1, d2, N1, N2, alpha):
 
     rks[f'div_{d2}'] = (alpha + 1) / (N * alpha) * ((1 / rks[d1 + '_nn'] ** alpha - 1 / rks[d2 + '_nn'] ** alpha).abs()) ** (
                 1 / (alpha + 1))
+
+
+def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
+    """
+    Compute rank turbulence divergence between date d1 and d2 for pages in rks
+    :param rks: dataframe with columns d1 and d2
+    :param d1: string date 1 in format YYYY-MM
+    :param d2: string date 2 in format YYYY-MM
+    :param N1: number of elements at d1
+    :param N2: number of elements at d2
+    :param alpha: hyper parameter for divergence computation
+    """
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page')
+    tmp_1 = computations.where(~col(d1).isNull()).withColumn('1/d1**alpha_N', pow(lit(1) / col(d1), lit(alpha)))
+    tmp_2 = computations.where(~col(d2).isNull()).withColumn('1/d2**alpha_N', pow(lit(1) / col(d2), lit(alpha)))
+    tmp_1 = tmp_1.withColumn('diff_N_1',
+                             pow(abs(col('1/d1**alpha_N') - lit((1 / (N1 + 0.5 * N2)) ** alpha)), lit(1 / (alpha + 1))))
+    tmp_2 = tmp_2.withColumn('diff_N_2',
+                             pow(abs(col('1/d2**alpha_N') - lit((1 / (N2 + 0.5 * N1)) ** alpha)), lit(1 / (alpha + 1))))
+    N = (alpha + 1) / alpha * (tmp_1.select(sum('diff_N_1').alias('dn1')).collect()[0][0] +
+                               tmp_2.select(sum('diff_N_2').alias('dn2')).collect()[0][0])
+
+    computations = computations.withColumn('1/d1**alpha', pow(lit(1) / col(d1 + '_nn'), lit(alpha)))
+    computations = computations.withColumn('1/d2**alpha', pow(lit(1) / col(d2 + '_nn'), lit(alpha)))
+    computations = computations.withColumn(f'div_{d2}',
+                                           pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), lit(1 / (alpha + 1))) * (
+                                                       alpha + 1) / (alpha * N))
+
+    return computations.select('page', f'div_{d2}', col(f'{d1}_nn').alias(f'rank_{d1}'),
+                               col(f'{d2}_nn').alias(f'rank_{d2}'))
 
 
 def augment_div(df, rg_rk, dates, df_ranks):
