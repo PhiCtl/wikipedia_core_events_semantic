@@ -16,7 +16,7 @@ def plot_topics_pies(df, colors, group='date', path=None):
                 visible=False,
                 name=f"{group} = " + str(n),
                 labels=grp['topics'],
-                values=grp['topics_count'],
+                values=grp['topic_counts'],
             marker_colors=grp['topics'].map(color_mapping))
         )
         labels.append(n)
