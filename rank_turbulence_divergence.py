@@ -12,8 +12,10 @@ from pyspark.sql.functions import *
 from ranking_helpers import compute_ranks_bins, rank_turbulence_divergence_sp
 
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','50G'),
-                                   ('spark.driver.maxResultSize', '8G')
+                                   ('spark.driver.memory','32G'),
+                                   ('spark.executor.memory', '32G'),
+                                   ('spark.driver.maxResultSize', '0'),
+                                    ('spark.executor.cores', '10')
                                   ])
 # create the session
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
