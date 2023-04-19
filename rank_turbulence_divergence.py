@@ -77,6 +77,6 @@ if __name__ == '__main__':
         # 4. Do calculations and store result
         df_res = rank_turbulence_divergence_sp(df_comparison, d1, d2, N1, N2, 0.0001)
         print("Writing to file...")
-        df_res.write.parquet(os.path.join(path, 'rank_turb_div_all.parquet'))
+        df_res.write.parquet(os.path.join(path, f'rank_turb_div_{d2}.parquet'))
 
     print("Done !")
