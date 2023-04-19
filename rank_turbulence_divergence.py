@@ -12,7 +12,7 @@ from pyspark.sql.functions import *
 from ranking_helpers import compute_ranks_bins, rank_turbulence_divergence_sp
 
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','42G'),
+                                   ('spark.driver.memory','50G'),
                                    ('spark.driver.maxResultSize', '8G')
                                   ])
 # create the session
@@ -75,9 +75,8 @@ if __name__ == '__main__':
         df_comparison = df_comparison.fillna({d1 + '_nn': last_rk1, d2 + '_nn': last_rk2})
 
         # 4. Do calculations and store result
-        dfs_divs.append(rank_turbulence_divergence_sp(df_comparison, d1, d2, N1, N2, 0.0001))
+        df_res = rank_turbulence_divergence_sp(df_comparison, d1, d2, N1, N2, 0.0001)
+        print("Writing to file...")
+        df_res.write.parquet(os.path.join(path, 'rank_turb_div_all.parquet'))
 
-    print("Writing to file...")
-    dfs_final = reduce(custom_join, dfs_divs)
-    dfs_final.write.parquet(os.path.join(path, 'rank_turb_div_all.parquet'))
     print("Done !")
