@@ -32,7 +32,8 @@ if __name__ == '__main__':
 
     # Data - 2019-2020-2021
     dfs = spark.read.parquet("/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2019_2020_2021_2022.parquet")
-    dfs = dfs.filter(~dfs.page.contains(":") & (dfs.tot_count_views >= 1) & (dfs.date.contains(['2019', '2020', '2021'])))
+    dfs = dfs.filter(~dfs.page.contains(":") & (dfs.tot_count_views >= 1)\
+                     & (~dfs.date.contains('2022')))
 
     # Extract high volume core
     df_rank = compute_ranks_bins(dfs, slicing=1000, lim=2 * int(1e7))
