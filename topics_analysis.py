@@ -22,7 +22,7 @@ def import_topics(path="/home/descourt/topic_embeddings/topics-enwiki-20230320-p
     return df_topics
 
 
-def plot_topics_pies(df, colors, group='date', path=None):
+def plot_topics_pies(df, group='date', path=None):
 
     color_mapping = {t : c for t, c in zip(df['topics'].unique(), colors)}
     fig = go.Figure()
