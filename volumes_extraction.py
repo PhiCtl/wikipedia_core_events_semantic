@@ -22,9 +22,8 @@ def find_hinge_point_np(y):
     # Assumes curve is not noisy
 
     slope = 100 / len(y)
-    print(np.gradient(y))
     h_idx = np.where(np.gradient(y) <= slope)[0][0]
-    return h_idx, y[h_idx]
+    return h_idx / len(y), y[h_idx]
 
 def plot_volume_curve(df, label):
     plt.figure()
