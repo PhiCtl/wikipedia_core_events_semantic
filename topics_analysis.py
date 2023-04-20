@@ -3,6 +3,12 @@ from ipywidgets import interactive, HBox, VBox
 import plotly.offline as py
 import pandas as pd
 
+with open("colors.txt", 'r') as f:
+    lines = f.read()
+from random import shuffle
+colors = lines.replace('\n', '').replace(' ','').split(',')[:64]
+shuffle(colors)
+
 def import_topics(path="/home/descourt/topic_embeddings/topics-enwiki-20230320-parsed.csv.gzip"):
 
     df_topics = pd.read_csv(path,
