@@ -73,9 +73,9 @@ def find_inflection_point(df):
 def extract_volumes(df):
     window = Window.partitionBy('date').orderBy('rank')
 
-    df_cutoff = df_rank.withColumn('cum_views', sum('tot_count_views').over(window)) \
+    df_cutoff = df.withColumn('cum_views', sum('tot_count_views').over(window)) \
         .select(col('date').alias('d'), 'cum_views', 'rank', 'page')
-    df_sum = df_rank.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'), count('*').alias('nb_pages'))
+    df_sum = df.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'), count('*').alias('nb_pages'))
     df_cutoff = df_cutoff.join(df_sum, df_sum.date == df_cutoff.d) \
         .withColumn('perc_views', col('cum_views') / col('tot_count_month') * 100) \
         .withColumn('perc_rank', col('rank') / col('nb_pages') * 100) \
