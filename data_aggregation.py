@@ -10,8 +10,10 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','24g'),
-                                   ('spark.driver.maxResultSize', '8G')
+                                   ('spark.driver.memory','32G'),
+                                   ('spark.executor.memory', '32G'),
+                                   ('spark.driver.maxResultSize', '0'),
+                                    ('spark.executor.cores', '10')
                                   ])
 # create the session
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
