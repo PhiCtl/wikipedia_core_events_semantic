@@ -6,8 +6,6 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 import pyspark
 
-from ranking_helpers import compute_ranks_bins
-
 
 def find_inflection_point(y):
     # Assumes curve is not noisy
@@ -73,7 +71,6 @@ def find_inflection_point(df):
     return df_inflection
 
 def extract_volumes(df):
-    df_rank = compute_ranks_bins(df, slicing=1000, lim=2 * int(1e7))
     window = Window.partitionBy('date').orderBy('rank')
 
     df_cutoff = df_rank.withColumn('cum_views', sum('tot_count_views').over(window)) \
