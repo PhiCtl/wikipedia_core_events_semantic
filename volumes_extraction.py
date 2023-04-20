@@ -21,14 +21,14 @@ def find_hinge_point_np(y):
 
     slope = 100 / len(y)
     h_idx = np.where(np.gradient(y) <= slope)[0][0]
-    return h_idx / len(y), y[h_idx]
+    return h_idx / len(y) * 100, y[h_idx]
 
 def plot_volume_curve(df, label):
     plt.figure()
     df.plot(x='perc_rank', y='perc_views', label=label)
     idx_h, h = find_hinge_point_np(df['perc_views'].values)
     plt.axhline(h, c='g')
-    plt.axvline(idx_h, c='g', label=f'{int(h)}%-{idx_h}th')
+    plt.axvline(idx_h, c='g', label=f'{int(h)}%-{idx_h}% of total rank')
     plt.title(f'Cumulative views distribution of Wikipedia pages for {label}')
     plt.xlabel('Percentage of last rank')
     plt.ylabel('Cumulative percentage of pageviews monthly volume')
