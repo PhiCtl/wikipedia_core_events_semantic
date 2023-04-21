@@ -22,9 +22,10 @@ spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
 sc = spark.sparkContext
 
-def custom_join(df1, df2):
+from functools import reduce
 
-    return df1.join(df2, "page", how='outer')
+def custom_join(df1, df2):
+    return df1.join(df2, 'page', 'outer')
 
 if __name__ == '__main__':
 
@@ -82,3 +83,9 @@ if __name__ == '__main__':
         df_res.write.parquet(os.path.join(path, f'rank_turb_div_{d2}.parquet'))
 
     print("Done !")
+
+    path = '/scratch/descourt/interm_results/rank_div'
+    paths = [os.path.join(path, f) for f in os.listdir(path)]
+    dfs = [spark.read.parquet(p) for p in paths]
+    df = reduce(DataFrame.unionAll, dfs)
+    df.write.parque(os.path.join(path, 'rank_turb_div_all_2.parquet'))

@@ -114,29 +114,6 @@ def compute_overlaps(df, offset=1, slicing=5000):
 
     return df_overlaps
 
-
-def slice_comparison(df, dates, mapping, title="between consecutive periods of 2 months"):
-    """
-    Plot overlap for several dates over rank ranges
-    :param title: title completion
-    :param df:
-    :param dates: dates (or date ranges if dates are binned) to select
-    :param mapping: to convert dates or date ranges into readable legends
-    :return:
-    """
-    df_plot = df.filter(df.date_range.isin(dates)).toPandas()
-    df_plot['date_range'].replace(mapping, inplace=True)
-    df_plot = df_plot.pivot(index='rank_range', columns='date_range', values='overlap')
-    plt.figure()
-    df_plot.plot(colormap='Paired')
-    plt.xlabel('Rank range')
-    plt.ylabel('Overlap between two series in %')
-    plt.xticks()
-    plt.yticks()
-    plt.title(f"Normalized percentage overlap {title} per rank range")
-    plt.legend(bbox_to_anchor=(1.3, 1), title="date range")
-    plt.show()
-
 def compute_merged_overlaps(df, offsets, slicing):
     """
     Compute overlaps of pages in given rank range between two dates bins
@@ -244,7 +221,7 @@ def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
                                            pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), lit(1 / (alpha + 1))) * (
                                                        alpha + 1) / (alpha * N))
 
-    return computations.select('page', f'div_{d2}') #, col(f'{d1}_nn').alias(f'rank_{d1}'),
+    return computations.withColumn('date', lit(d2)).select('page', f'div', 'date') #, col(f'{d1}_nn').alias(f'rank_{d1}'),
                                                     # col(f'{d2}_nn').alias(f'rank_{d2}'))
 
 
