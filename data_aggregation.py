@@ -43,10 +43,13 @@ def setup_data(years, months, path="/scratch/descourt/pageviews"):
 
 def specials(project):
     if project == 'en.wikipedia':
-        return ['main_page', 'special:search', '-']
+        return ['main_page', 'special:search', '-' ,'wikipedia']
     elif project == 'fr.wikipedia':
-        # TODO check
-        return ['wikipédia:accueil_principal', '-', 'spécial:recherche']
+        return ['wikipédia:accueil_principal', '-', 'spécial:recherche', 'wikipédia', 'special:search']
+    elif project == 'es.wikipedia':
+        return ['wikipedia:hauptseite', 'spezial:suche', '-', 'special:search', 'wikipedia']
+    elif project == 'de.wikipedia':
+        return ['wikipedia', 'wikipedia:portada', 'especial:buscar', '-', 'spécial:recherche', 'special:search']
 
 def filter_data(df, project, dates):
     """
@@ -56,7 +59,8 @@ def filter_data(df, project, dates):
     df_filt = df.where(f"project = '{project}'") \
                 .filter(df.date.isin(dates)) \
                 .select(lower(col('page')).alias('page'), 'project', 'count', 'date')
-    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt) & ~df_filt.page.contains(":"))
+    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt) & ~df_filt.page.contains(":")\
+                             & (df_filt.count >= 1))
 
     return df_filt
 
