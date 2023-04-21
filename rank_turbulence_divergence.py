@@ -30,7 +30,7 @@ def custom_join(df1, df2):
 if __name__ == '__main__':
 
     # path
-    path = '/scratch/descourt/interm_results/rank_div'
+    path = '/scratch/descourt/interm_results/rank_div_2'
     os.makedirs(path, exist_ok=True)
 
     # Data - 2019-2020-2021
