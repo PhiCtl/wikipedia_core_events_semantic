@@ -2,17 +2,23 @@ import plotly.graph_objs as go
 from ipywidgets import interactive, HBox, VBox
 import plotly.offline as py
 import pandas as pd
+from random import shuffle
 
+
+# Set up colors and mapping so that it is consistent whenever we make the plot
 with open("colors.txt", 'r') as f:
     lines = f.read()
-from random import shuffle
-colors = lines.replace('\n', '').replace(' ','').split(',')[:64]
+colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
 shuffle(colors)
 
+with open("topics_list.txt", 'r') as f:
+    lines = f.read()
+topics = lines.replace('\n', '').replace("'", '').split(',')
 
-def plot_topics_pies(df, group='date', path=None):
+color_mapping = {t: c for t, c in zip(topics, colors)}
 
-    color_mapping = {t : c for t, c in zip(df['topics'].unique(), colors)}
+
+def plot_topics_pies(df, group='date', top_type='topics', path=None):
     fig = go.Figure()
 
     # Add traces, one for each slider step
