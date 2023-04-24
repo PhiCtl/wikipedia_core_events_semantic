@@ -28,9 +28,9 @@ def plot_topics_pies(df, group='date', top_type='topics', path=None):
             go.Pie(
                 visible=False,
                 name=f"{group} = " + str(n),
-                labels=grp['topics'],
+                labels=grp[top_type],
                 values=grp['topic_counts'],
-            marker_colors=grp['topics'].map(color_mapping))
+            marker_colors=grp[top_type].map(color_mapping))
         )
         labels.append(n)
 
