@@ -6,12 +6,12 @@ from random import shuffle
 
 
 # Set up colors and mapping so that it is consistent whenever we make the plot
-with open("colors.txt", 'r') as f:
+with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
     lines = f.read()
 colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
 shuffle(colors)
 
-with open("topics_list.txt", 'r') as f:
+with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
     lines = f.read()
 topics = lines.replace('\n', '').replace("'", '').split(',')
 
