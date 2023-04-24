@@ -73,7 +73,7 @@ def main():
                         help='months',
                         nargs='+',
                         type=int,
-                        default=[0,1,2,3,4])
+                        default=[1,2,3,4])
     parser.add_argument('--sp',
                         help='save path',
                         type=str,
@@ -86,7 +86,7 @@ def main():
     urls = []
     for year in args.y:
         for m in args.m:
-            month = str(m + 1)
+            month = str(m)
             if len(str(month)) < 2:
                 month = "0" + month
             urls.append(
