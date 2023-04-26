@@ -10,7 +10,8 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','32G'),
+                                   ('spark.driver.memory','32'
+                                                          'G'),
                                    ('spark.executor.memory', '32G'),
                                    ('spark.driver.maxResultSize', '0'),
                                     ('spark.executor.cores', '10')
@@ -118,7 +119,12 @@ def main():
 
 if __name__ == '__main__':
 
-    main()
+    # main()
+    dfs = spark.read.parquet(
+        "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2016_2017_2018_2019_2020_2021_2022.parquet")
+    df_25 = spark.read.parquet("/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015.parquet")
+    dfs.union(df_25).write.parquet(
+        "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015_2016_2017_2018_2019_2020_2021_2022.parquet")
 
 
 
