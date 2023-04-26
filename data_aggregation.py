@@ -119,12 +119,12 @@ def main():
 
 if __name__ == '__main__':
 
-    # main()
-    dfs = spark.read.parquet(
-        "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2016_2017_2018_2019_2020_2021_2022.parquet")
-    df_25 = spark.read.parquet("/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015.parquet")
-    dfs.union(df_25).write.parquet(
-        "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015_2016_2017_2018_2019_2020_2021_2022.parquet")
+    main()
+    # dfs = spark.read.parquet(
+    #     "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2016_2017_2018_2019_2020_2021_2022.parquet")
+    # df_25 = spark.read.parquet("/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015.parquet")
+    # dfs.union(df_25).write.parquet(
+    #     "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015_2016_2017_2018_2019_2020_2021_2022.parquet")
 
 
 
