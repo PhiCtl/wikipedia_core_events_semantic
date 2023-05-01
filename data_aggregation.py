@@ -10,10 +10,11 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 conf = pyspark.SparkConf().setMaster("local[10]").setAll([
-                                   ('spark.driver.memory','70G'),
-                                   ('spark.executor.memory', '70G'),
+                                   ('spark.driver.memory','120G'),
+                                   ('spark.executor.memory', '120G'),
                                    ('spark.driver.maxResultSize', '0'),
-                                    ('spark.executor.cores', '10')
+                                    ('spark.executor.cores', '10'),
+                                    ('spark.local.dir', '/scratch/descourt')
                                   ])
 # create the session
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
