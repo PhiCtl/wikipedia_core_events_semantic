@@ -61,7 +61,7 @@ def filter_data(df, project, dates):
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
                 .filter(df.date.isin(dates)) \
-                .select(lower(col('page')).alias('page'), 'project', 'counts', 'date', 'page_id')
+                .select(lower(col('page')).alias('page'), 'counts', 'date', 'page_id')
     df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
              ~df_filt.page.contains('wikipedia:') & \
              ~df_filt.page.contains('file:') & \
@@ -77,19 +77,24 @@ def filter_data(df, project, dates):
              ~df_filt.page.contains('media:') & \
              ~df_filt.page.contains('_talk:') & \
              ~df_filt.page.isin(specials_to_filt)\
-             & (df_filt.counts >= 1))
+             & (df_filt.counts >= 1)\
+             & (df_filt.page_id != 'null'))
 
     return df_filt
 
 
 def aggregate_data(df):
     """
-    TODO
+    Compute the aggregated number of views for each page per month,
+    Filter out views without page id
+    Compute page ranking per month according to total aggregated page views
     """
     # rank pages for each date
-    df_agg = df.groupBy("date", "page") \
-                .agg(sum("counts").alias("tot_count_views")) \
+    df_agg = df.groupBy("date", "page_id") \
+                .agg(sum("counts").alias("tot_count_views"), first('page').alias('page')) \
                 .sort(['date', "tot_count_views"], ascending=False)
+    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    df_agg = df.withColumn("rank", row_number().over(window))
 
     return df_agg
 
