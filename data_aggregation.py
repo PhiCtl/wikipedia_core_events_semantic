@@ -90,7 +90,7 @@ def aggregate_data(df):
     Compute page ranking per month according to total aggregated page views
     """
     # rank pages for each date
-    df_agg = df.groupBy("date", "page_id") \
+    df_agg = df.sort(desc('counts')).groupBy("date", "page_id") \
                 .agg(sum("counts").alias("tot_count_views"), first('page').alias('page')) \
                 .sort(['date', "tot_count_views"], ascending=False)
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
