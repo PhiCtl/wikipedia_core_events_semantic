@@ -94,7 +94,7 @@ def aggregate_data(df):
                 .agg(sum("counts").alias("tot_count_views"), first('page').alias('page')) \
                 .sort(['date', "tot_count_views"], ascending=False)
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    df_agg = df.withColumn("rank", row_number().over(window))
+    df_agg = df_agg.withColumn("rank", row_number().over(window))
 
     return df_agg
 
