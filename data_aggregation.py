@@ -10,8 +10,7 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','32'
-                                                          'G'),
+                                   ('spark.driver.memory','32G'),
                                    ('spark.executor.memory', '32G'),
                                    ('spark.driver.maxResultSize', '0'),
                                     ('spark.executor.cores', '10')
@@ -31,8 +30,8 @@ def setup_data(years, months, path="/scratch/descourt/pageviews"):
     def read_file(f_n, date):
         print(f"loading {f_n}")
         df = spark.read.csv(f_n, sep=r' ')
-        return df.selectExpr("_c0 as project", "_c1 as page", "_c2 as null", "_c3 as access_type", "_c4 as counts",
-                             "_c5 as idontknow").withColumn('date', lit(date))
+        return df.selectExpr("_c0 as project", "_c1 as page", "_c2 as page_id", "_c3 as access_type", "_c4 as counts",
+                             "_c5 as anonym_user").withColumn('date', lit(date))
 
     files_names = [os.path.join(path, f"pageviews-{year}{month}-user.bz2") for year in years for month in months]
     dates = [f"{year}-{month}" for year in years for month in months]
@@ -59,8 +58,8 @@ def filter_data(df, project, dates):
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
                 .filter(df.date.isin(dates)) \
-                .select(lower(col('page')).alias('page'), 'project', 'counts', 'date')
-    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt) & ~df_filt.page.contains(":")\
+                .select(lower(col('page')).alias('page'), 'project', 'counts', 'date', 'page_id')
+    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt)\
                              & (df_filt.counts >= 1))
 
     return df_filt
