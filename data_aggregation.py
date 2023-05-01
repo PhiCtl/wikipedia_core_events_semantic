@@ -9,9 +9,9 @@ import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 
-conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','32G'),
-                                   ('spark.executor.memory', '32G'),
+conf = pyspark.SparkConf().setMaster("local[10]").setAll([
+                                   ('spark.driver.memory','70G'),
+                                   ('spark.executor.memory', '70G'),
                                    ('spark.driver.maxResultSize', '0'),
                                     ('spark.executor.cores', '10')
                                   ])
@@ -19,6 +19,7 @@ conf = pyspark.SparkConf().setMaster("local[*]").setAll([
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
 sc = spark.sparkContext
+sc.setLogLevel('ERROR')
 
 
 def setup_data(years, months, path="/scratch/descourt/pageviews"):
