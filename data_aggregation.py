@@ -43,9 +43,10 @@ def setup_data(years, months, path="/scratch/descourt/pageviews"):
 
 def specials(project):
     if project == 'en.wikipedia':
-        return ['main_page', 'special:search', '-' ,'wikipedia']
+        return ['main_page', '-']
+    # TODO refine for french edition
     elif project == 'fr.wikipedia':
-        return ['wikipédia:accueil_principal', '-', 'spécial:recherche', 'wikipédia', 'special:search']
+        return ['wikipédia:accueil_principal', '-', 'spécial:recherche' 'special:search']
     elif project == 'es.wikipedia':
         return ['wikipedia:hauptseite', 'spezial:suche', '-', 'special:search', 'wikipedia']
     elif project == 'de.wikipedia':
@@ -59,8 +60,22 @@ def filter_data(df, project, dates):
     df_filt = df.where(f"project = '{project}'") \
                 .filter(df.date.isin(dates)) \
                 .select(lower(col('page')).alias('page'), 'project', 'counts', 'date', 'page_id')
-    df_filt = df_filt.filter(~df_filt.page.isin(specials_to_filt)\
-                             & (df_filt.counts >= 1))
+    df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
+             ~df_filt.page.contains('wikipedia:') & \
+             ~df_filt.page.contains('file:') & \
+             ~df_filt.page.contains('mediawiki:') & \
+             ~df_filt.page.contains('template:') & \
+             ~df_filt.page.contains('help:') & \
+             ~df_filt.page.contains('category:') & \
+             ~df_filt.page.contains('portal:') & \
+             ~df_filt.page.contains('draft:') & \
+             ~df_filt.page.contains('timetext:') & \
+             ~df_filt.page.contains('module:') & \
+             ~df_filt.page.contains('special:') & \
+             ~df_filt.page.contains('media:') & \
+             ~df_filt.page.contains('_talk:') & \
+             ~df_filt.page.isin(specials_to_filt)\
+             & (df_filt.counts >= 1))
 
     return df_filt
 
