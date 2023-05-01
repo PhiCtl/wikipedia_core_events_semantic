@@ -32,6 +32,7 @@ def custom_join(df1, df2):
 if __name__ == '__main__':
 
     save_path = "/scratch/descourt/processed_data_050223"
+    os.makedirs(save_path, exist_ok=True)
     save_file = "pageviews_agg_en_2015-2023.parquet"
 
     try :
