@@ -82,26 +82,29 @@ def filter_data(df, project, dates):
     return df_filt
 
 
-def aggregate_data(df):
+def aggregate_data(df, match_ids=True):
     """
     Compute the aggregated number of views for each page per month,
     Filter out views without page id
     Compute page ranking per month according to total aggregated page views
     """
-    # 1. Aggregate counts by page title and page ids &
-    #    Sorting by descending aggregated counts and grouping by page, select first page id
-    w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
-    df_agg = df.groupBy('date', 'page', 'page_id')\
-               .agg(sum('counts').alias('tot_count_views'))\
-               .withColumn('page_id', first('page_id').over(w))
+    if match_ids :
+        # 1. Aggregate counts by page title and page ids &
+        #    Sorting by descending aggregated counts and grouping by page, select first page id
+        w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
+        df_agg = df.groupBy('date', 'page', 'page_id')\
+                   .agg(sum('counts').alias('tot_count_views'))\
+                   .withColumn('page_id', first('page_id').over(w))
 
-    # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
-    w = Window.partitionBy('date', 'page_id').orderBy(col("tot_count_views").desc())
-    df_agg = df_agg.withColumn('page', first('page').over(w))
+        # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
+        w = Window.partitionBy('date', 'page_id').orderBy(col("tot_count_views").desc())
+        df_agg = df_agg.withColumn('page', first('page').over(w))
 
-    # 3. Aggregate counts by page title
-    df_agg = df_agg.groupBy('date', 'page').agg(sum('tot_count_views').alias('tot_count_views'),
-                                                      first('page_id').alias('page_id'))
+        # 3. Aggregate counts by page title
+        df_agg = df_agg.groupBy('date', 'page').agg(sum('tot_count_views').alias('tot_count_views'),
+                                                          first('page_id').alias('page_id'))
+    else:
+        df_agg = df.groupBy('date', 'page').agg(sum("counts").alias('tot_count_views'), first('page_id').alias('page_id'))
 
     # 4. Rank titles
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
@@ -129,7 +132,7 @@ def automated_main():
         dfs = setup_data(years=args_y, months=months)
         df_filt = filter_data(dfs, 'en.wikipedia', dates=dates)
 
-        df_agg = aggregate_data(df_filt)
+        df_agg = aggregate_data(df_filt, match_ids=not ('2015' in args_y))
         df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_en.wikipedia_{'_'.join(args_y)}.parquet"))
 
     # Read all again and save
