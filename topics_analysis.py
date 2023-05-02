@@ -18,7 +18,7 @@ topics = lines.replace('\n', '').replace("'", '').split(',')
 color_mapping = {t: c for t, c in zip(topics, colors)}
 
 
-def plot_topics_pies(df, group='date', top_type='topics', path=None):
+def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', path=None):
     fig = go.Figure()
 
     # Add traces, one for each slider step
@@ -28,9 +28,9 @@ def plot_topics_pies(df, group='date', top_type='topics', path=None):
             go.Pie(
                 visible=False,
                 name=f"{group} = " + str(n),
-                labels=grp[top_type],
-                values=grp['topic_counts'],
-            marker_colors=grp[top_type].map(color_mapping))
+                labels=grp[labels],
+                values=grp[values],
+            marker_colors=grp[labels].map(color_mapping))
         )
         labels.append(n)
 
