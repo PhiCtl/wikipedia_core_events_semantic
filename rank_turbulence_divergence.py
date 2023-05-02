@@ -43,6 +43,8 @@ if __name__ == '__main__':
 
         # Data - all
         dfs = spark.read.parquet(os.path.join(save_path, save_file))
+        # Filter out data from 2015 for now
+        dfs = dfs.where(~dfs.date.contains('2015'))
 
         # Extract high volume core
         window = Window.partitionBy('date').orderBy('rank')
