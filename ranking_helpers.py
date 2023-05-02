@@ -205,7 +205,7 @@ def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
     :param N2: number of elements at d2
     :param alpha: hyper parameter for divergence computation
     """
-    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id', 'page')
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id')
     tmp_1 = computations.where(~col(d1).isNull()).withColumn('1/d1**alpha_N', pow(lit(1) / col(d1), lit(alpha)))
     tmp_2 = computations.where(~col(d2).isNull()).withColumn('1/d2**alpha_N', pow(lit(1) / col(d2), lit(alpha)))
     tmp_1 = tmp_1.withColumn('diff_N_1',
@@ -221,7 +221,7 @@ def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
                                            pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), lit(1 / (alpha + 1))) * (
                                                        alpha + 1) / (alpha * N))
 
-    return computations.withColumn('date', lit(d2)).select('page', col(f'div_{d2}').alias('div'), 'date', 'page_id') #, col(f'{d1}_nn').alias(f'rank_{d1}'),
+    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id') #, col(f'{d1}_nn').alias(f'rank_{d1}'),
                                                     # col(f'{d2}_nn').alias(f'rank_{d2}'))
 
 
