@@ -49,7 +49,7 @@ if __name__ == '__main__':
         # Extract high volume core
         window = Window.partitionBy('date').orderBy('rank')
         df_cutoff = dfs.withColumn('cum_views', sum('tot_count_views').over(window)) \
-            .select(col('date').alias('d'), 'cum_views', 'rank', 'page')
+            .select(col('date').alias('d'), 'cum_views', 'rank', 'page', 'page_id')
         df_sum = dfs.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'))
         df_cutoff = df_cutoff.join(df_sum, df_sum.date == df_cutoff.d) \
             .withColumn('perc_views', col('cum_views') / col('tot_count_month') * 100) \
