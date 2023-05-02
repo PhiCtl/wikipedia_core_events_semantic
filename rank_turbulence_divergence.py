@@ -35,34 +35,6 @@ if __name__ == '__main__':
     os.makedirs(save_path, exist_ok=True)
     save_file = "pageviews_agg_en_2015-2023.parquet"
 
-    try :
-        # Process data
-        for args_m, args_y in zip([[1,2,3,4,5,6,7,8,9,10,11,12],
-                                   [7,8,9,10,11,12],
-                                   [1,2,3]],
-
-                                  [['2016', '2017', '2018', '2019', '2020', '2021', '2022'],
-                                   ['2015'],
-                                   ['2023']]):
-            months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
-            dates = [f"{year}-{month}" for year in args_y for month in months]
-
-            dfs = setup_data(years=args_y, months=months)
-            df_filt = filter_data(dfs, 'en.wikipedia', dates=dates)
-
-            df_agg = aggregate_data(df_filt)
-            df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_en.wikipedia_{'_'.join(args_y)}.parquet"))
-
-        # Read all again and save
-        dfs_path = [os.path.join(save_path, d) for d in os.listdir(save_path)]
-        dfs = [spark.read.parquet(df) for df in dfs_path]
-        reduce(DataFrame.unionAll, dfs).write.parquet(os.path.join(save_path, save_file))
-
-    except Exception as e:
-        print("Exception occured at data processing stage")
-        save_path = "/scratch/descourt/processed_data_050123"
-        save_file = "pageviews_agg_en.wikipedia_2015_2016_2017_2018_2019_2020_2021_2022_2023.parquet"
-
     # path
     path = '/scratch/descourt/interm_results/rank_div_all'
     os.makedirs(path, exist_ok=True)
@@ -74,9 +46,9 @@ if __name__ == '__main__':
 
         # Extract high volume core
         window = Window.partitionBy('date').orderBy('rank')
-        df_cutoff = df_rank.withColumn('cum_views', sum('tot_count_views').over(window)) \
+        df_cutoff = dfs.withColumn('cum_views', sum('tot_count_views').over(window)) \
             .select(col('date').alias('d'), 'cum_views', 'rank', 'page')
-        df_sum = df_rank.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'))
+        df_sum = dfs.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'))
         df_cutoff = df_cutoff.join(df_sum, df_sum.date == df_cutoff.d) \
             .withColumn('perc_views', col('cum_views') / col('tot_count_month') * 100) \
             .drop('d')
