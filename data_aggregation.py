@@ -81,6 +81,18 @@ def filter_data(df, project, dates):
 
     return df_filt
 
+def match_ids(df, latest_date):
+    """
+    Match page ids from latest date dataframe with pageids
+    Especially for data before 2015-12 because page ids weren't matched
+    """
+
+    [y, m] = latest_date.split('-')
+    # Select all available pages and their page ids (raw)
+    df_latest = setup_data([y], [m]).select('page', 'page_id').distinct()
+    # Join on page title to recover page ids if any
+    df = df.drop('page_id').join(df_latest, 'page', 'left')
+    return df
 
 def aggregate_data(df, match_ids=True):
     """
@@ -130,9 +142,13 @@ def automated_main():
         dates = [f"{year}-{month}" for year in args_y for month in months]
 
         dfs = setup_data(years=args_y, months=months)
-        df_filt = filter_data(dfs, 'en.wikipedia', dates=dates)
 
-        df_agg = aggregate_data(df_filt, match_ids=not ('2015' in args_y))
+        # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
+        if '2015' in args_y:
+            dfs = match_ids(dfs, '2015-12')
+
+        df_filt = filter_data(dfs, 'en.wikipedia', dates=dates)
+        df_agg = aggregate_data(df_filt)
         df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_en.wikipedia_{'_'.join(args_y)}.parquet"))
 
     # Read all again and save
