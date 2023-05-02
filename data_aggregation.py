@@ -77,8 +77,7 @@ def filter_data(df, project, dates):
              ~df_filt.page.contains('media:') & \
              ~df_filt.page.contains('_talk:') & \
              ~df_filt.page.isin(specials_to_filt)\
-             & (df_filt.counts >= 1)\
-             & (df_filt.page_id != 'null'))
+             & (df_filt.counts >= 1))
 
     return df_filt
 
@@ -89,14 +88,54 @@ def aggregate_data(df):
     Filter out views without page id
     Compute page ranking per month according to total aggregated page views
     """
-    # rank pages for each date
-    df_agg = df.sort(desc('counts')).groupBy("date", "page_id") \
-                .agg(sum("counts").alias("tot_count_views"), first('page').alias('page')) \
-                .sort(['date', "tot_count_views"], ascending=False)
+    # 1. Aggregate counts by page title and page ids &
+    #    Sorting by descending aggregated counts and grouping by page, select first page id
+    w = Window.partitionBy('page').orderBy(col("tot_count_views").desc())
+    df_agg = df.groupBy('page', 'page_id')\
+               .agg(sum('counts').alias('tot_count_views'))\
+               .withColumn('page_id', first('page_id').over(w))
+
+    # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
+    w = Window.partitionBy('page_id').orderBy(col("tot_count_views").desc())
+    df_agg = df_agg.withColumn('page', first('page').over(w))
+
+    # 3. Aggregate counts by page title
+    df_agg = df_agg.groupBy('page').agg(sum('tot_count_views').alias('tot_count_views'),
+                                                      first('page_id').alias('page_id'))
+
+    # 4. Rank titles
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
     df_agg = df_agg.withColumn("rank", row_number().over(window))
 
     return df_agg
+
+def automated_main():
+
+    save_path = "/scratch/descourt/processed_data_050223"
+    os.makedirs(save_path, exist_ok=True)
+    save_file = "pageviews_agg_en_2015-2023.parquet"
+
+    # Process data
+    for args_m, args_y in zip([[1,2,3,4,5,6,7,8,9,10,11,12],
+                               [7,8,9,10,11,12],
+                               [1,2,3]],
+
+                              [['2016', '2017', '2018', '2019', '2020', '2021', '2022'],
+                               ['2015'],
+                               ['2023']]):
+        months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
+        dates = [f"{year}-{month}" for year in args_y for month in months]
+
+        dfs = setup_data(years=args_y, months=months)
+        df_filt = filter_data(dfs, 'en.wikipedia', dates=dates)
+
+        df_agg = aggregate_data(df_filt)
+        df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_en.wikipedia_{'_'.join(args_y)}.parquet"))
+
+    # Read all again and save
+    dfs_path = [os.path.join(save_path, d) for d in os.listdir(save_path)]
+    dfs = [spark.read.parquet(df) for df in dfs_path]
+    reduce(DataFrame.unionAll, dfs).write.parquet(os.path.join(save_path, save_file))
 
 
 def main():
@@ -140,13 +179,7 @@ def main():
 
 if __name__ == '__main__':
 
-    main()
-    # dfs = spark.read.parquet(
-    #     "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2016_2017_2018_2019_2020_2021_2022.parquet")
-    # df_25 = spark.read.parquet("/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015.parquet")
-    # dfs.union(df_25).write.parquet(
-    #     "/scratch/descourt/processed_data/pageviews_agg_en.wikipedia_2015_2016_2017_2018_2019_2020_2021_2022.parquet")
-
+    automated_main()
 
 
 
