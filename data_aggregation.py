@@ -90,17 +90,17 @@ def aggregate_data(df):
     """
     # 1. Aggregate counts by page title and page ids &
     #    Sorting by descending aggregated counts and grouping by page, select first page id
-    w = Window.partitionBy('page').orderBy(col("tot_count_views").desc())
-    df_agg = df.groupBy('page', 'page_id')\
+    w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
+    df_agg = df.groupBy('date', 'page', 'page_id')\
                .agg(sum('counts').alias('tot_count_views'))\
                .withColumn('page_id', first('page_id').over(w))
 
     # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
-    w = Window.partitionBy('page_id').orderBy(col("tot_count_views").desc())
+    w = Window.partitionBy('date', 'page_id').orderBy(col("tot_count_views").desc())
     df_agg = df_agg.withColumn('page', first('page').over(w))
 
     # 3. Aggregate counts by page title
-    df_agg = df_agg.groupBy('page').agg(sum('tot_count_views').alias('tot_count_views'),
+    df_agg = df_agg.groupBy('date', 'page').agg(sum('tot_count_views').alias('tot_count_views'),
                                                       first('page_id').alias('page_id'))
 
     # 4. Rank titles
