@@ -80,7 +80,7 @@ def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embed
     # df_embeds.to_parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet', engine='fastparquet')
 
     if debug: print("Process embeddings pyspark")
-    df_embeds = spark.read.parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet')
+    df_embeds = spark.read.parquet('/scratch/descourt/topics/embeddings-20210401.parquet')
     assembler = VectorAssembler(inputCols=[c for c in df_embeds.columns if c != 'page_id'],
                                 outputCol='embed')
     df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
