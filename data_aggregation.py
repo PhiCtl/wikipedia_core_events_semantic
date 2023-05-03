@@ -1,4 +1,5 @@
 import os
+
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 import time
@@ -10,12 +11,12 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 conf = pyspark.SparkConf().setMaster("local[10]").setAll([
-                                   ('spark.driver.memory','120G'),
-                                   ('spark.executor.memory', '120G'),
-                                   ('spark.driver.maxResultSize', '0'),
-                                    ('spark.executor.cores', '10'),
-                                    ('spark.local.dir', '/scratch/descourt/spark')
-                                  ])
+    ('spark.driver.memory', '120G'),
+    ('spark.executor.memory', '120G'),
+    ('spark.driver.maxResultSize', '0'),
+    ('spark.executor.cores', '10'),
+    ('spark.local.dir', '/scratch/descourt/spark')
+])
 # create the session
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
@@ -43,6 +44,7 @@ def setup_data(years, months, path="/scratch/descourt/pageviews"):
     print(f"Elapsed time {time.time() - start} s")
     return df
 
+
 def specials(project):
     if project == 'en.wikipedia':
         return ['main_page', '-']
@@ -54,45 +56,61 @@ def specials(project):
     elif project == 'de.wikipedia':
         return ['wikipedia', 'wikipedia:portada', 'especial:buscar', '-', 'spécial:recherche', 'special:search']
 
+
 def filter_data(df, project, dates):
     """
     Filter in wanted data from initial dataframe
     """
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
-                .filter(df.date.isin(dates)) \
-                .select(lower(col('page')).alias('page'), 'counts', 'date', 'page_id')
+        .filter(df.date.isin(dates)) \
+        .select(lower(col('page')).alias('page'), 'counts', 'date', 'page_id')
     df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
-             ~df_filt.page.contains('wikipedia:') & \
-             ~df_filt.page.contains('file:') & \
-             ~df_filt.page.contains('mediawiki:') & \
-             ~df_filt.page.contains('template:') & \
-             ~df_filt.page.contains('help:') & \
-             ~df_filt.page.contains('category:') & \
-             ~df_filt.page.contains('portal:') & \
-             ~df_filt.page.contains('draft:') & \
-             ~df_filt.page.contains('timetext:') & \
-             ~df_filt.page.contains('module:') & \
-             ~df_filt.page.contains('special:') & \
-             ~df_filt.page.contains('media:') & \
-             ~df_filt.page.contains('_talk:') & \
-             ~df_filt.page.isin(specials_to_filt)\
-             & (df_filt.counts >= 1))
+                             ~df_filt.page.contains('wikipedia:') & \
+                             ~df_filt.page.contains('file:') & \
+                             ~df_filt.page.contains('mediawiki:') & \
+                             ~df_filt.page.contains('template:') & \
+                             ~df_filt.page.contains('help:') & \
+                             ~df_filt.page.contains('category:') & \
+                             ~df_filt.page.contains('portal:') & \
+                             ~df_filt.page.contains('draft:') & \
+                             ~df_filt.page.contains('timetext:') & \
+                             ~df_filt.page.contains('module:') & \
+                             ~df_filt.page.contains('special:') & \
+                             ~df_filt.page.contains('media:') & \
+                             ~df_filt.page.contains('_talk:') & \
+                             ~df_filt.page.isin(specials_to_filt) \
+                             & (df_filt.counts >= 1))
 
     return df_filt
 
-def match_ids(df, latest_date):
+
+def match_ids(df, latest_date, project):
     """
     Match page ids from latest date dataframe with pageids
     Especially for data before 2015-12 because page ids weren't matched
     """
 
     [y, m] = latest_date.split('-')
-    # Select all available pages and their page ids (raw)
-    df_latest = setup_data([y], [m]).select('page', 'page_id').distinct()
+
+    # Select all available pages and their page ids (raw) for project of interest
+    df_latest = setup_data([y], [m])  # Download all data
+
+    # Select columns of interest and filter project
+    df_latest = df_latest.where((df_latest.project == project) & (df_latest.page_id != 'null')) \
+        .select('page', 'page_id', 'counts')
+    w = Window.partitionBy('page').orderBy(col("tot_count_views").desc())
+
+    # Select unique id per page
+    df_pageids = df_latest.groupBy('page', 'page_id') \
+        .agg(sum('counts').alias('tot_count_views')) \
+        .withColumn('page_id', first('page_id').over(w))
+
     # Join on page title to recover page ids if any
-    df = df.drop('page_id').join(df_latest, 'page', 'left')
+    df = df.drop('page_id').where(f"project = '{project}'").join(df_pageids, 'page', 'left')
+
     return df
+
 
 def aggregate_data(df, match_ids=True):
     """
@@ -100,13 +118,14 @@ def aggregate_data(df, match_ids=True):
     Filter out views without page id
     Compute page ranking per month according to total aggregated page views
     """
-    if match_ids :
+    if match_ids:
+
         # 1. Aggregate counts by page title and page ids &
         #    Sorting by descending aggregated counts and grouping by page, select first page id
         w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
-        df_agg = df.groupBy('date', 'page', 'page_id')\
-                   .agg(sum('counts').alias('tot_count_views'))\
-                   .withColumn('page_id', first('page_id').over(w))
+        df_agg = df.groupBy('date', 'page', 'page_id') \
+            .agg(sum('counts').alias('tot_count_views')) \
+            .withColumn('page_id', first('page_id').over(w))
 
         # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
         w = Window.partitionBy('date', 'page_id').orderBy(col("tot_count_views").desc())
@@ -114,9 +133,10 @@ def aggregate_data(df, match_ids=True):
 
         # 3. Aggregate counts by page title
         df_agg = df_agg.groupBy('date', 'page').agg(sum('tot_count_views').alias('tot_count_views'),
-                                                          first('page_id').alias('page_id'))
+                                                    first('page_id').alias('page_id'))
     else:
-        df_agg = df.groupBy('date', 'page').agg(sum("counts").alias('tot_count_views'), first('page_id').alias('page_id'))
+        df_agg = df.groupBy('date', 'page').agg(sum("counts").alias('tot_count_views'),
+                                                first('page_id').alias('page_id'))
 
     # 4. Rank titles
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
@@ -124,16 +144,17 @@ def aggregate_data(df, match_ids=True):
 
     return df_agg
 
-def automated_main():
 
+def automated_main():
     save_path = "/scratch/descourt/processed_data_050223"
     os.makedirs(save_path, exist_ok=True)
     save_file = "pageviews_agg_en_2015-2023.parquet"
+    project = 'en.wikipedia'
 
     # Process data
-    for args_m, args_y in zip([[1,2,3,4,5,6,7,8,9,10,11,12],
-                               [7,8,9,10,11,12],
-                               [1,2,3]],
+    for args_m, args_y in zip([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                               [7, 8, 9, 10, 11, 12],
+                               [1, 2, 3]],
 
                               [['2016', '2017', '2018', '2019', '2020', '2021', '2022'],
                                ['2015'],
@@ -145,11 +166,11 @@ def automated_main():
 
         # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
         if '2015' in args_y:
-            dfs = match_ids(dfs, '2015-12')
+            dfs = match_ids(dfs, '2015-12', project=project)
 
-        df_filt = filter_data(dfs, 'en.wikipedia', dates=dates)
+        df_filt = filter_data(dfs, project, dates=dates)
         df_agg = aggregate_data(df_filt)
-        df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_en.wikipedia_{'_'.join(args_y)}.parquet"))
+        df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_{project}_{'_'.join(args_y)}.parquet"))
 
     # Read all again and save
     dfs_path = [os.path.join(save_path, d) for d in os.listdir(save_path)]
@@ -158,7 +179,6 @@ def automated_main():
 
 
 def main():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--y',
@@ -196,14 +216,6 @@ def main():
 
     print("Done")
 
+
 if __name__ == '__main__':
-
     automated_main()
-
-
-
-
-
-
-
-
