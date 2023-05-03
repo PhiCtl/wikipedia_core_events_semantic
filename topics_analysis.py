@@ -4,21 +4,23 @@ import plotly.offline as py
 import pandas as pd
 from random import shuffle
 
+def set_up_mapping():
+    # Set up colors and mapping so that it is consistent whenever we make the plot
+    with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
+        lines = f.read()
+    colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
+    shuffle(colors)
 
-# Set up colors and mapping so that it is consistent whenever we make the plot
-with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
-    lines = f.read()
-colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
-shuffle(colors)
+    with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
+        lines = f.read()
+    topics = lines.replace('\n', '').replace("'", '').split(',')
 
-with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
-    lines = f.read()
-topics = lines.replace('\n', '').replace("'", '').split(',')
-
-color_mapping = {t: c for t, c in zip(topics, colors)}
+    color_mapping = {t: c for t, c in zip(topics, colors)}
+    return color_mapping
 
 
 def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', path=None):
+    color_mapping = set_up_mapping()
     fig = go.Figure()
 
     # Add traces, one for each slider step
