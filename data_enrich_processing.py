@@ -61,8 +61,8 @@ def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip"
     df_topics = df_topics.explode('topics')
     df_topics.to_parquet(path_out, engine='fastparquet')
 
-def parse_embeddings(path_in="/home/descourt/topic_embeddings/article-description-embeddings_enwiki-20210401-fasttext.pickle",
-                     path_out='/home/descourt/topic_embeddings/embeddings-20210401-sp.parquet',
+def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embeddings_enwiki-20210401-fasttext.pickle",
+                     path_out='/scratch/descourt/topics/topic_embeddings/embeddings-20210401-sp.parquet',
                      debug=True):
 
     # Load embeddings for < 2021-04
