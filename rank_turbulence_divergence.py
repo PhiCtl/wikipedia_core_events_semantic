@@ -3,6 +3,7 @@ from functools import reduce
 from tqdm import tqdm
 
 import os
+
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 import pyspark
@@ -10,15 +11,15 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 from ranking_helpers import compute_ranks_bins, rank_turbulence_divergence_sp
-from data_aggregation import*
+from data_aggregation import *
 
 conf = pyspark.SparkConf().setMaster("local[5]").setAll([
-                                   ('spark.driver.memory','120G'),
-                                   ('spark.executor.memory', '120G'),
-                                   ('spark.driver.maxResultSize', '0'),
-                                    ('spark.executor.cores', '5'),
-                                    ('spark.local.dir', '/scratch/descourt/spark')
-                                  ])
+    ('spark.driver.memory', '120G'),
+    ('spark.executor.memory', '120G'),
+    ('spark.driver.maxResultSize', '0'),
+    ('spark.executor.cores', '5'),
+    ('spark.local.dir', '/scratch/descourt/spark')
+])
 # create the session
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
@@ -26,8 +27,10 @@ sc = spark.sparkContext
 
 from functools import reduce
 
+
 def custom_join(df1, df2):
     return df1.join(df2, 'page_id', 'outer')
+
 
 if __name__ == '__main__':
 
@@ -39,7 +42,7 @@ if __name__ == '__main__':
     path = '/scratch/descourt/interm_results/rank_div_all'
     os.makedirs(path, exist_ok=True)
 
-    try :
+    try:
 
         # Data - all
         dfs = spark.read.parquet(os.path.join(save_path, save_file))
@@ -54,23 +57,23 @@ if __name__ == '__main__':
         df_cutoff = df_cutoff.join(df_sum, df_sum.date == df_cutoff.d) \
             .withColumn('perc_views', col('cum_views') / col('tot_count_month') * 100) \
             .drop('d')
-        df_high_volume = df_cutoff.where(df_cutoff.perc_views <= 90) # Empirical
+        df_high_volume = df_cutoff.where(df_cutoff.perc_views <= 90)  # Empirical
 
         # consider date per date
         months = [str(m + 1) if (m + 1) / 10 >= 1 else f"0{m + 1}" for m in range(12)]
-        dates = [f"{y}-{m}" for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in months] + \
+        dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12'] + \
+                [f"{y}-{m}" for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in months] + \
                 ['2023-01', '2023-02', '2023-03']
 
         dfs_divs = []
 
         for i in tqdm(range(len(dates) - 1)):
-
-            print(f"Processing {dates[i]}-{dates[i+1]}")
+            print(f"Processing {dates[i]}-{dates[i + 1]}")
 
             d1 = dates[i]
             d2 = dates[i + 1]
-            df_ranks_piv = df_high_volume.where(df_high_volume.date.isin([d1, d2]))\
-                                         .groupBy('page_id').pivot('date').sum('rank')
+            df_ranks_piv = df_high_volume.where(df_high_volume.date.isin([d1, d2])) \
+                .groupBy('page_id').pivot('date').sum('rank')
 
             # 2. select rows for which at least 1 non null in both columns
             df_comparison = df_ranks_piv.where(~col(d2).isNull() | ~col(d1).isNull())
@@ -95,7 +98,7 @@ if __name__ == '__main__':
     except Exception as e:
         print("Error happened during RTD extraction")
 
-    try :
+    try:
 
         paths = [os.path.join(path, f) for f in os.listdir(path)]
         dfs = [spark.read.parquet(p) for p in paths]
