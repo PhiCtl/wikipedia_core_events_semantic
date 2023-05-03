@@ -22,7 +22,7 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', p
     fig = go.Figure()
 
     # Add traces, one for each slider step
-    labels = []
+    l = []
     for n, grp in df.groupby(group):
         fig.add_trace(
             go.Pie(
@@ -32,7 +32,7 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', p
                 values=grp[values],
             marker_colors=grp[labels].map(color_mapping))
         )
-        labels.append(n)
+        l.append(n)
 
     # Make 1st trace visible
     fig.data[0].visible = True
@@ -43,7 +43,7 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', p
         step = dict(
             method="update",
             args=[{"visible": [False] * len(fig.data)},
-                  {"title": f"Slider switched to {group}: " + str(labels[i])}],  # layout attribute
+                  {"title": f"Slider switched to {group}: " + str(l[i])}],  # layout attribute
         )
         step["args"][0]["visible"][i] = True  # Toggle i'th trace to "visible"
         steps.append(step)
