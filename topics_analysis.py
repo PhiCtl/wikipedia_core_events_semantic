@@ -19,7 +19,7 @@ def set_up_mapping():
     return color_mapping
 
 
-def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', mapping=False, path=None):
+def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', mapping=True, path=None):
     color_mapping = set_up_mapping()
     fig = go.Figure()
 
