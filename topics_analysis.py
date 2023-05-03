@@ -19,7 +19,7 @@ def set_up_mapping():
     return color_mapping
 
 
-def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', path=None):
+def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', mapping=False, path=None):
     color_mapping = set_up_mapping()
     fig = go.Figure()
 
@@ -32,7 +32,7 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', p
                 name=f"{group} = " + str(n),
                 labels=grp[labels],
                 values=grp[values],
-            marker_colors=grp[labels].map(color_mapping))
+            marker_colors=grp[labels].map(color_mapping)) if mapping else None
         )
         l.append(n)
 
