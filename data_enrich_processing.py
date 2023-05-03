@@ -20,13 +20,14 @@ conf = pyspark.SparkConf().setMaster("local[*]").setAll([
                                                           'G'),
                                    ('spark.executor.memory', '32G'),
                                    ('spark.driver.maxResultSize', '0'),
-                                    ('spark.executor.cores', '10')
+                                    ('spark.executor.cores', '10'),
+                                    ('spark.local.dir', '/scratch/descourt/spark')
                                   ])
 # create the session
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
 sc = spark.sparkContext
-sc.setLogLevel('ERROR')
+# sc.setLogLevel('ERROR')
 
 
 def zip_json(dir_, dir_out):
@@ -62,17 +63,12 @@ def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip"
 
 def parse_embeddings(path_in="/home/descourt/topic_embeddings/article-description-embeddings_enwiki-20210401-fasttext.pickle",
                      path_out='/home/descourt/topic_embeddings/embeddings-20210401-sp.parquet',
-                     path_qid="/home/descourt/topic_embeddings/title_pid-20210901.jsonl.bz2",
                      debug=True):
+
     # Load embeddings for < 2021-04
     if debug: print("Load embeddings for < 2021-04")
     with open(path_in, 'rb') as handle:
         dict_embeddings = pickle.load(handle)
-
-    # Load qid to page title mapping for < 2021-04
-    if debug: print("Load qid to page title mapping for < 2021-04")
-    df_qid = spark.read.json(path_qid)
-    df_qid = df_qid.withColumn('page_title', lower(regexp_replace('page_title', ' ', '_')))
 
     # Process embeddings
     if debug: print("Process embeddings pandas")
@@ -81,12 +77,13 @@ def parse_embeddings(path_in="/home/descourt/topic_embeddings/article-descriptio
     df_embeds = pd.DataFrame(embeds)
     df_embeds['page_id'] = page_ids
     df_embeds.rename({i: str(i) for i in df_embeds.columns}, inplace=True, axis=1)
+    df_embeds.to_parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet', engine='fastparquet')
 
     if debug: print("Process embeddings pyspark")
-    df_embeds = spark.createDataFrame(df_embeds).join(df_qid, 'page_id')
-    assembler = VectorAssembler(inputCols=[c for c in df_embeds.columns if c not in ['page_id', 'page_title']],
+    df_embeds = spark.read.parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet')
+    assembler = VectorAssembler(inputCols=[c for c in df_embeds.columns if c != 'page_id'],
                                 outputCol='embed')
-    df_embeds_vec = assembler.transform(df_embeds).select('page_title', 'embed')
+    df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
     df_embeds_vec.write.parquet(path_out)
 
 
