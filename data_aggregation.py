@@ -99,12 +99,13 @@ def match_ids(df, latest_date, project):
     # Select columns of interest and filter project
     df_latest = df_latest.where((df_latest.project == project) & (df_latest.page_id != 'null')) \
         .select('page', 'page_id', 'counts')
-    w = Window.partitionBy('page').orderBy(col("tot_count_views").desc())
 
     # Select unique id per page
+    w = Window.partitionBy('page').orderBy(col("tot_count_views").desc())
     df_pageids = df_latest.groupBy('page', 'page_id') \
         .agg(sum('counts').alias('tot_count_views')) \
-        .withColumn('page_id', first('page_id').over(w))
+        .withColumn('page_id', first('page_id').over(w))\
+        .select('page', 'page_id').distinct().cache()
 
     # Join on page title to recover page ids if any
     df = df.drop('page_id').where(f"project = '{project}'").join(df_pageids, 'page', 'left')
@@ -134,6 +135,7 @@ def aggregate_data(df, match_ids=True):
         # 3. Aggregate counts by page title
         df_agg = df_agg.groupBy('date', 'page').agg(sum('tot_count_views').alias('tot_count_views'),
                                                     first('page_id').alias('page_id'))
+        df_agg = df_agg.where(~col('page_id').isNull() & ~(df_agg.page_id == 'null'))
     else:
         df_agg = df.groupBy('date', 'page').agg(sum("counts").alias('tot_count_views'),
                                                 first('page_id').alias('page_id'))
