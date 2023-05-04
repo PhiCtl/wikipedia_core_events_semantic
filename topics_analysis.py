@@ -26,14 +26,23 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', m
     # Add traces, one for each slider step
     l = []
     for n, grp in df.groupby(group):
-        fig.add_trace(
-            go.Pie(
-                visible=False,
-                name=f"{group} = " + str(n),
-                labels=grp[labels],
-                values=grp[values],
-            marker_colors=grp[labels].map(color_mapping)) if mapping else None
-        )
+        if mapping:
+            fig.add_trace(
+                    go.Pie(
+                        visible=False,
+                        name=f"{group} = " + str(n),
+                        labels=grp[labels],
+                        values=grp[values],
+                    marker_colors=grp[labels].map(color_mapping))
+            )
+        else:
+            fig.add_trace(
+                    go.Pie(
+                        visible=False,
+                        name=f"{group} = " + str(n),
+                        labels=grp[labels],
+                        values=grp[values])
+            )
         l.append(n)
 
     # Make 1st trace visible
