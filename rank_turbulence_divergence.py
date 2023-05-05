@@ -42,10 +42,11 @@ if __name__ == '__main__':
     try:
 
         # Data - all
-        dfs = spark.read.parquet(os.path.join(save_path, save_file))
+        dfs_prev = spark.read.parquet(os.path.join(save_path, save_file))
         # Compute fractional_ranking
-        dfs = compute_fractional_ranking(dfs).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date')
-
+        dfs_prev = compute_fractional_ranking(dfs_prev)
+        dfs_prev.write.parquet(os.path.join(save_path, "pageviews_agg_en_2015-2023_frac.parquet"))
+        dfs = spark.read.parquet(os.path.join(save_path, "pageviews_agg_en_2015-2023_frac.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date')
 
         # Extract high volume core
         df_high_volume = extract_volumes(dfs).where("perc_views <= '90'")
