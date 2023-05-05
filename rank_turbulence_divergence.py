@@ -10,8 +10,9 @@ import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 
-from ranking_helpers import compute_ranks_bins, rank_turbulence_divergence_sp
+from ranking_helpers import compute_fractional_ranking, rank_turbulence_divergence_sp
 from data_aggregation import *
+from volumes_extraction import extract_volumes
 
 conf = pyspark.SparkConf().setMaster("local[5]").setAll([
     ('spark.driver.memory', '120G'),
@@ -28,10 +29,6 @@ sc = spark.sparkContext
 from functools import reduce
 
 
-def custom_join(df1, df2):
-    return df1.join(df2, 'page_id', 'outer')
-
-
 if __name__ == '__main__':
 
     save_path = "/scratch/descourt/processed_data_050223"
@@ -39,31 +36,25 @@ if __name__ == '__main__':
     save_file = "pageviews_agg_en_2015-2023.parquet"
 
     # path
-    path = '/scratch/descourt/interm_results/rank_div_all'
+    path = '/scratch/descourt/interm_results/rank_div_fract'
     os.makedirs(path, exist_ok=True)
 
     try:
 
         # Data - all
         dfs = spark.read.parquet(os.path.join(save_path, save_file))
-        # Filter out data for now
-        dfs = dfs.where(dfs.date.contains('2015') | (dfs.date == '2016-01'))
+        # Compute fractional_ranking
+        dfs = compute_fractional_ranking(dfs).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date')
+
 
         # Extract high volume core
-        window = Window.partitionBy('date').orderBy('rank')
-        df_cutoff = dfs.withColumn('cum_views', sum('tot_count_views').over(window)) \
-            .select(col('date').alias('d'), 'cum_views', 'rank', 'page', 'page_id')
-        df_sum = dfs.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'))
-        df_cutoff = df_cutoff.join(df_sum, df_sum.date == df_cutoff.d) \
-            .withColumn('perc_views', col('cum_views') / col('tot_count_month') * 100) \
-            .drop('d')
-        df_high_volume = df_cutoff.where(df_cutoff.perc_views <= 90)  # Empirical
+        df_high_volume = extract_volumes(dfs).where("perc_views <= '90'")
 
         # consider date per date
         months = [str(m + 1) if (m + 1) / 10 >= 1 else f"0{m + 1}" for m in range(12)]
-        dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12', '2016-01'] #  + \
-                #[f"{y}-{m}" for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in months] + \
-                #['2023-01', '2023-02', '2023-03']
+        dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12'] + \
+                [f"{y}-{m}" for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in months] + \
+                ['2023-01', '2023-02', '2023-03']
 
         dfs_divs = []
 
