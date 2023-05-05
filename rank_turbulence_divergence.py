@@ -42,6 +42,7 @@ if __name__ == '__main__':
     try:
 
         # Data - all
+        print('Compute frac ranks')
         dfs_prev = spark.read.parquet(os.path.join(save_path, save_file))
         # Compute fractional_ranking
         dfs_prev = compute_fractional_ranking(dfs_prev)
