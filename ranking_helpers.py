@@ -48,6 +48,14 @@ def compute_ranks(df, lim, subset='date'):
 
     return df_lim
 
+def compute_fractional_ranking(df):
+    """
+    On already ranked data
+    """
+    df_fract = df.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    df = df.join(df_fract, on=['date', 'tot_count_views'])
+    return df
+
 
 def compute_freq_bins(df, lim=100000, nb_bins=3, subset='date', max_views=10000000, min_views=5000):
     """
