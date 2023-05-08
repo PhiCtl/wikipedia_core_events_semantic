@@ -57,14 +57,14 @@ def specials(project):
         return ['wikipedia', 'wikipedia:portada', 'especial:buscar', '-', 'spécial:recherche', 'special:search']
 
 
-def filter_data(df, project, dates):
+def filter_data(df, project, dates, remove_false_pos=True):
     """
     Filter in wanted data from initial dataframe
     """
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
         .filter(df.date.isin(dates)) \
-        .select(lower(col('page')).alias('page'), 'counts', 'date', 'page_id')
+        .select(lower(col('page')).alias('page'), 'counts', 'date', 'page_id', 'access_type')
     df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
                              ~df_filt.page.contains('wikipedia:') & \
                              ~df_filt.page.contains('file:') & \
@@ -81,6 +81,9 @@ def filter_data(df, project, dates):
                              ~df_filt.page.contains('_talk:') & \
                              ~df_filt.page.isin(specials_to_filt) \
                              & (df_filt.counts >= 1))
+
+    if remove_false_pos:
+        df_filt = collect_false_positive(df_filt)
 
     return df_filt
 
@@ -111,6 +114,22 @@ def match_ids(df, latest_date, project):
     df = df.drop('page_id').where(f"project = '{project}'").join(df_pageids, 'page', 'left')
 
     return df
+
+
+def collect_false_positive(df_to_clean, lim=1000, thresh=10000):
+
+    """
+    Return data
+    """
+    # Take top 100 pages (should be a good estimation of actual ranking irr. of redirects)
+    df_agg = df_to_clean.groupBy('date', 'page').agg(sum('counts').alias('tot_counts')).sort(desc('tot_counts')).limit(lim).cache()
+    # Compute number of counts for mobile versus web
+    df_agg = df_agg.join(df_to_clean.where('access_type = "desktop"').groupBy('date', 'page').agg(sum('counts').alias('tot_counts_desktop')), on=['date', 'page'])
+    df_agg = df_agg.join(df_to_clean.where('access_type = "mobile-web"').groupBy('date', 'page').agg(sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
+    # Get false positive titles based on desktop to mobile web views ratio
+    df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mobweb') >= thresh) | (col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / thresh)).withColumn('toDelete', lit(1))
+
+    return df_to_clean.join(df_FP.select('date', 'page', 'toDelete'), on=['page', 'date'], how='left').where(col('toDelete').isNull())
 
 
 def aggregate_data(df, match_ids=True):
