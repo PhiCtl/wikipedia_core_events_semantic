@@ -10,6 +10,9 @@ import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 
+from tqdm import tqdm
+from functools import reduce
+
 conf = pyspark.SparkConf().setMaster("local[10]").setAll([
     ('spark.driver.memory', '120G'),
     ('spark.executor.memory', '120G'),
@@ -237,6 +240,45 @@ def main():
 
     print("Done")
 
+def compute_false_positive_post():
+
+    save_path = "/scratch/descourt/processed_data_050223"
+    os.makedirs(save_path, exist_ok=True)
+    save_file = "pageviews_agg_en_2015-2023_fp.parquet"
+    project = 'en.wikipedia'
+
+    # Process data
+    dfs_fp = []
+    for args_m, args_y in tqdm(zip([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                               [7, 8, 9, 10, 11, 12],
+                               [1, 2, 3]],
+
+                              [['2016', '2017', '2018', '2019', '2020', '2021', '2022'],
+                               ['2015'],
+                               ['2023']])):
+        months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
+        dates = [f"{year}-{month}" for year in args_y for month in months]
+
+        dfs = setup_data(years=args_y, months=months)
+        df_filt = filter_data(dfs, project, dates=dates, remove_false_pos=False)
+
+        # Take top 100 pages (should be a good estimation of actual ranking irr. of redirects)
+        df_agg = df_filt.groupBy('date', 'page').agg(sum('counts').alias('tot_counts')).sort(
+            desc('tot_counts')).limit(1000).cache()
+        # Compute number of counts for mobile versus web
+        df_agg = df_agg.join(df_filt.where('access_type = "desktop"').groupBy('date', 'page').agg(
+            sum('counts').alias('tot_counts_desktop')), on=['date', 'page'])
+        df_agg = df_agg.join(df_filt.where('access_type = "mobile-web"').groupBy('date', 'page').agg(
+            sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
+        # Get false positive titles based on desktop to mobile web views ratio
+        df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mobweb') >= 1e4) | (
+                    col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / 1e4)).withColumn('toDelete', lit(1))
+
+        dfs_fp.append(df_FP)
+
+    dfs_fp = reduce(DataFrame.unionAll, dfs_fp)
+    dfs_fp.write.parquet(os.path.join(save_path, save_file))
+
 
 if __name__ == '__main__':
-    automated_main()
+    compute_false_positive_post()
