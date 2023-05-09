@@ -81,7 +81,7 @@ def extract_volumes(df):
 
     return df_cutoff
 
-def extract_low_volume(df):
+def extract_high_volume(df):
     df_cutoff = extract_volumes(df)
     # Find hinge point
     df_hinge = find_hinge_point(df_cutoff).cache()
