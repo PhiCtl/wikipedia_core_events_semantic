@@ -53,7 +53,7 @@ if __name__ == '__main__':
         # Find hinge point
         df_hinge = find_hinge_point(df_vols).cache()
         # Take all pages which are below hinge point for views
-        df_high_vol = df_vols.join(df_hinge,'date').where(col('perc_views') <= col('hinge_perc'))
+        df_high_volume = df_vols.join(df_hinge,'date').where(col('perc_views') <= col('hinge_perc'))
 
         # consider date per date
         months = [str(m + 1) if (m + 1) / 10 >= 1 else f"0{m + 1}" for m in range(12)]
