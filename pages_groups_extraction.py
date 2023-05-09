@@ -70,7 +70,7 @@ def find_inflection_point(df):
         .agg(first('perc_views').alias('inf_perc'), first('rank').alias('infl_rank'))
     return df_inflection
 
-def extract_volumes(df):
+def compute_volumes(df):
     window = Window.partitionBy('date').orderBy('rank')
 
     df_cutoff = df.withColumn('cum_views', sum('tot_count_views').over(window))
@@ -82,12 +82,34 @@ def extract_volumes(df):
     return df_cutoff
 
 def extract_high_volume(df):
-    df_cutoff = extract_volumes(df)
+    df_cutoff = compute_volumes(df)
     # Find hinge point
     df_hinge = find_hinge_point(df_cutoff).cache()
     # Take all pages which are below hinge point for views
     df_high_volume = df_cutoff.join(df_hinge, 'date').where(col('perc_views') <= col('hinge_perc'))
     return df_high_volume
+
+
+def extract_common_pages(df, time_period=None, aggregate=False):
+    if time_period is not None:
+        df = df.where(df.date.isin(time_period))
+
+    # Count number of occurences for each page in the considered time period
+    df = df.join(df.groupBy('page_id').agg(count('*').alias('nb_occurrences')), 'page_id')
+    nb_dates = df.select('date').distinct().count()
+
+    # Extract pages which are present during the entire time period and aggregate several metrics
+    df_stable = df.where(df.nb_occurrences == nb_dates).join(dfs.select('date', 'page_id', 'rank', 'tot_count_views'),
+                                                             on=['date', 'page_id'])
+    if aggregate:
+        df_stable = df_stable.sort(asc('date')).groupBy('page_id').agg(
+            # collect_list('div').alias('div_sorted_list'),\
+            avg('div').alias('avg_div'), stddev('div').alias('std_div'), avg('tot_count_views').alias('avg_pageviews'),
+            stddev('tot_count_views').alias('std_pageviews'), avg('rank').alias('avg_rank'),
+            stddev('rank').alias('std_rank'))
+    return df_stable
+
+
 
 
 
