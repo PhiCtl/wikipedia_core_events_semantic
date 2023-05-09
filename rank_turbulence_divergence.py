@@ -136,7 +136,7 @@ if __name__ == '__main__':
     try:
 
         # Data - all
-        dfs = spark.read.parquet(os.path.join(save_path, "pageviews_en_2015-2023_frac.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date', 'tot_count_views')
+        dfs = spark.read.parquet(os.path.join(save_path, "pageviews_en_2015-2023.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date', 'tot_count_views')
 
         # Extract high volume core
         df_high_volume = extract_high_volume(dfs)
