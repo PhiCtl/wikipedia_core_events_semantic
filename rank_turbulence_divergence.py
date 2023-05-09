@@ -33,7 +33,6 @@ if __name__ == '__main__':
 
     save_path = "/scratch/descourt/processed_data_050923"
     os.makedirs(save_path, exist_ok=True)
-    save_file = "pageviews_agg_en_2015-2023.parquet"
 
     # path
     path = '/scratch/descourt/interm_results/rank_div_fract'
@@ -47,7 +46,7 @@ if __name__ == '__main__':
         # # Compute fractional_ranking
         # dfs_prev = compute_fractional_ranking(dfs_prev)
         # dfs_prev.write.parquet(os.path.join(save_path, "pageviews_agg_en_2015-2023_frac.parquet"))
-        dfs = spark.read.parquet(os.path.join(save_path, "pageviews_agg_en_2015-2023_frac.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date', 'tot_count_views')
+        dfs = spark.read.parquet(os.path.join(save_path, "pageviews_en_2015-2023_frac.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date', 'tot_count_views')
 
         # Extract high volume core
         df_vols = extract_volumes(dfs)
