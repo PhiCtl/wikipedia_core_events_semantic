@@ -77,11 +77,11 @@ def filter_data(df, project, dates, remove_false_pos=True):
                              ~df_filt.page.contains('category:') & \
                              ~df_filt.page.contains('portal:') & \
                              ~df_filt.page.contains('draft:') & \
-                             ~df_filt.page.contains('timetext:') & \
+                             ~df_filt.page.contains('timedtext:') & \
                              ~df_filt.page.contains('module:') & \
                              ~df_filt.page.contains('special:') & \
                              ~df_filt.page.contains('media:') & \
-                             ~df_filt.page.contains('_talk:') & \
+                             ~df_filt.page.contains('talk:') & \
                              ~df_filt.page.isin(specials_to_filt) \
                              & (df_filt.counts >= 1))
 
@@ -119,7 +119,7 @@ def match_ids(df, latest_date, project):
     return df
 
 
-def collect_false_positive(df_to_clean, lim=1000, thresh=10000):
+def collect_false_positive(df_to_clean, lim=1000, thresh=1e2):
 
     """
     Return data
@@ -271,8 +271,10 @@ def compute_false_positive_post():
         df_agg = df_agg.join(df_filt.where('access_type = "mobile-web"').groupBy('date', 'page').agg(
             sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
         # Get false positive titles based on desktop to mobile web views ratio
-        df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mobweb') >= 1e4) | (
-                    col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / 1e4)).withColumn('toDelete', lit(1))
+        df_FP = df_agg.where(( (col('tot_counts_desktop') >= 1e7) | (col('tot_counts_mobweb') >= 1e7))\
+                             & (col('tot_counts_desktop') / col('tot_counts_mobweb') >= 1e2) |
+                                (col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / 1e2))\
+            .withColumn('toDelete', lit(1))
 
         dfs_fp.append(df_FP)
 
