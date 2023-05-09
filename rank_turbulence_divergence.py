@@ -12,7 +12,7 @@ from pyspark.sql.functions import *
 
 from ranking_helpers import compute_fractional_ranking, rank_turbulence_divergence_sp
 from data_aggregation import *
-from volumes_extraction import extract_volumes
+from volumes_extraction import extract_volumes, find_hinge_point
 
 conf = pyspark.SparkConf().setMaster("local[5]").setAll([
     ('spark.driver.memory', '120G'),
@@ -31,7 +31,7 @@ from functools import reduce
 
 if __name__ == '__main__':
 
-    save_path = "/scratch/descourt/processed_data_050223"
+    save_path = "/scratch/descourt/processed_data_050923"
     os.makedirs(save_path, exist_ok=True)
     save_file = "pageviews_agg_en_2015-2023.parquet"
 
@@ -50,7 +50,11 @@ if __name__ == '__main__':
         dfs = spark.read.parquet(os.path.join(save_path, "pageviews_agg_en_2015-2023_frac.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date', 'tot_count_views')
 
         # Extract high volume core
-        df_high_volume = extract_volumes(dfs).where("perc_views <= '90'")
+        df_vols = extract_volumes(dfs)
+        # Find hinge point
+        df_hinge = find_hinge_point(df_vols).cache()
+        # Take all pages which are below hinge point for views
+        df_high_vol = df_vols.join(df_hinge,'date').where(col('perc_views') <= col('hinge_perc'))
 
         # consider date per date
         months = [str(m + 1) if (m + 1) / 10 >= 1 else f"0{m + 1}" for m in range(12)]
