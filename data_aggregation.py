@@ -119,7 +119,7 @@ def match_ids(df, latest_date, project):
     return df
 
 
-def collect_false_positive(df_to_clean, lim=1000, thresh=1e2):
+def collect_false_positive(df_to_clean, lim=200, thresh=1e3):
 
     """
     Return data
@@ -128,7 +128,9 @@ def collect_false_positive(df_to_clean, lim=1000, thresh=1e2):
     df_agg = df_to_clean.groupBy('date', 'page').agg(sum('counts').alias('tot_counts')).sort(desc('tot_counts')).limit(lim).cache()
     # Compute number of counts for mobile versus web
     df_agg = df_agg.join(df_to_clean.where('access_type = "desktop"').groupBy('date', 'page').agg(sum('counts').alias('tot_counts_desktop')), on=['date', 'page'])
-    df_agg = df_agg.join(df_to_clean.where('access_type = "mobile-web"').groupBy('date', 'page').agg(sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
+    df_agg = df_agg.join(df_to_clean.where('access_type = "mobile-web" OR access_type = "mobile-app"')\
+                                    .groupBy('date', 'page')\
+                                    .agg(sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
     # Get false positive titles based on desktop to mobile web views ratio
     df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mobweb') >= thresh) | (col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / thresh)).withColumn('toDelete', lit(1))
 
@@ -242,9 +244,9 @@ def main():
 
 def compute_false_positive_post():
 
-    save_path = "/scratch/descourt/processed_data_050223"
+    save_path = "/scratch/descourt/processed_data_050923"
     os.makedirs(save_path, exist_ok=True)
-    save_file = "pageviews_agg_en_2015-2023_fp.parquet"
+    save_file = "pageviews_en_2015-2023_fp.parquet"
     project = 'en.wikipedia'
 
     # Process data
@@ -264,17 +266,16 @@ def compute_false_positive_post():
 
         # Take top 100 pages (should be a good estimation of actual ranking irr. of redirects)
         df_agg = df_filt.groupBy('date', 'page').agg(sum('counts').alias('tot_counts')).sort(
-            desc('tot_counts')).limit(1000).cache()
+            desc('tot_counts')).limit(200).cache()
         # Compute number of counts for mobile versus web
         df_agg = df_agg.join(df_filt.where('access_type = "desktop"').groupBy('date', 'page').agg(
             sum('counts').alias('tot_counts_desktop')), on=['date', 'page'])
-        df_agg = df_agg.join(df_filt.where('access_type = "mobile-web"').groupBy('date', 'page').agg(
-            sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
+        df_agg = df_agg.join(
+            df_filt.where('access_type = "mobile-web" OR access_type = "mobile-app"').groupBy('date', 'page').agg(
+                sum('counts').alias('tot_counts_mob')), on=['date', 'page'])
         # Get false positive titles based on desktop to mobile web views ratio
-        df_FP = df_agg.where(( (col('tot_counts_desktop') >= 1e7) | (col('tot_counts_mobweb') >= 1e7))\
-                             & (col('tot_counts_desktop') / col('tot_counts_mobweb') >= 1e2) |
-                                (col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / 1e2))\
-            .withColumn('toDelete', lit(1))
+        df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mob') >= 1e3) | (
+                col('tot_counts_desktop') / col('tot_counts_mob') <= 1 / 1e3)).withColumn('toDelete', lit(1))
 
         dfs_fp.append(df_FP)
 
