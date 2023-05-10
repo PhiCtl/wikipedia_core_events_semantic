@@ -81,13 +81,17 @@ def compute_volumes(df):
 
     return df_cutoff
 
-def extract_high_volume(df):
+def extract_volume(df, high=True):
     df_cutoff = compute_volumes(df)
     # Find hinge point
     df_hinge = find_hinge_point(df_cutoff).cache()
     # Take all pages which are below hinge point for views
-    df_high_volume = df_cutoff.join(df_hinge, 'date').where(col('perc_views') <= col('hinge_perc'))
-    return df_high_volume
+    if high :
+        df_volume = df_cutoff.join(df_hinge, 'date').where(col('perc_views') <= col('hinge_perc'))
+    else:
+        # Low
+        df_volume = df_cutoff.join(df_hinge, 'date').where(col('perc_views') > col('hinge_perc'))
+    return df_volume
 
 
 def extract_common_pages(df, time_period=None, aggregate=False):
