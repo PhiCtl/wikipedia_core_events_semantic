@@ -274,8 +274,8 @@ def compute_false_positive_post():
             df_filt.where('access_type = "mobile-web" OR access_type = "mobile-app"').groupBy('date', 'page').agg(
                 sum('counts').alias('tot_counts_mob')), on=['date', 'page'])
         # Get false positive titles based on desktop to mobile web views ratio
-        df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mob') >= 1e3) | (
-                col('tot_counts_desktop') / col('tot_counts_mob') <= 1 / 1e3)).withColumn('toDelete', lit(1))
+        df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mob') >= 50) | (
+                col('tot_counts_desktop') / col('tot_counts_mob') <= 1 / 50)).withColumn('toDelete', lit(1))
 
         dfs_fp.append(df_FP)
 
