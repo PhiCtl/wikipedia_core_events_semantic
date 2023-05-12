@@ -9,7 +9,6 @@ def set_up_mapping():
     with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
         lines = f.read()
     colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
-    shuffle(colors)
 
     with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
         lines = f.read()
@@ -20,6 +19,7 @@ def set_up_mapping():
 
 
 def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', mapping=True, path=None):
+    # TODO change type of plot scatter, bar, pie depending on argument
     color_mapping = set_up_mapping()
     fig = go.Figure()
 
@@ -76,3 +76,4 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', m
     fig.show()
     if path is not None:
         fig.write_html(path)
+
