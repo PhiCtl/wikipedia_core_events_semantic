@@ -66,18 +66,18 @@ def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embed
                      debug=True):
 
     # Load embeddings for < 2021-04
-    # if debug: print("Load embeddings for < 2021-04")
-    # with open(path_in, 'rb') as handle:
-    #     dict_embeddings = pickle.load(handle)
-    #
-    # # Process embeddings
-    # if debug: print("Process embeddings pandas")
-    # page_ids = [i for i in dict_embeddings.keys()]
-    # embeds = np.array([dict_embeddings[i].tolist() for i in page_ids])
-    # df_embeds = pd.DataFrame(embeds)
-    # df_embeds['page_id'] = page_ids
-    # df_embeds.rename({i: str(i) for i in df_embeds.columns}, inplace=True, axis=1)
-    # df_embeds.to_parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet', engine='fastparquet')
+    if debug: print("Load embeddings for < 2021-04")
+    with open(path_in, 'rb') as handle:
+        dict_embeddings = pickle.load(handle)
+
+    # Process embeddings
+    if debug: print("Process embeddings pandas")
+    page_ids = [i for i in dict_embeddings.keys()]
+    embeds = np.array([dict_embeddings[i].tolist() for i in page_ids])
+    df_embeds = pd.DataFrame(embeds)
+    df_embeds['page_id'] = page_ids
+    df_embeds.rename({i: str(i) for i in df_embeds.columns}, inplace=True, axis=1)
+    df_embeds.to_parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet', engine='fastparquet')
 
     if debug: print("Process embeddings pyspark")
     df_embeds = spark.read.parquet('/scratch/descourt/topics/embeddings-20210401.parquet')
