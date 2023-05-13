@@ -104,7 +104,7 @@ def extract_common_pages(df, time_period=None, aggregate=False, nb_dates=None):
         nb_dates = df.select('date').distinct().count()
 
     # Extract pages which are present during the entire time period and aggregate several metrics
-    df_stable = df.where(df.nb_occurrences == nb_dates).join(dfs.select('date', 'page_id'), on=['date', 'page_id'])
+    df_stable = df.where(df.nb_occurrences == nb_dates).join(df.select('date', 'page_id'), on=['date', 'page_id'])
     if aggregate:
         df_stable = df_stable.sort(asc('date')).groupBy('page_id').agg(
             # collect_list('div').alias('div_sorted_list'),\
