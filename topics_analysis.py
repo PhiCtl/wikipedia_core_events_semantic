@@ -2,47 +2,64 @@ import plotly.graph_objs as go
 from ipywidgets import interactive, HBox, VBox
 import plotly.offline as py
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import cm
+
 from random import shuffle
 
-def set_up_mapping():
+def set_up_mapping(topics=None):
     # Set up colors and mapping so that it is consistent whenever we make the plot
     with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
         lines = f.read()
     colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
 
-    with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
-        lines = f.read()
-    topics = lines.replace('\n', '').replace("'", '').split(',')
+    if topics is None:
+        with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
+            lines = f.read()
+        topics = lines.replace('\n', '').replace("'", '').split(',')
 
     color_mapping = {t: c for t, c in zip(topics, colors)}
     return color_mapping
 
 
-def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', mapping=True, path=None):
-    # TODO change type of plot scatter, bar, pie depending on argument
+def plot_temporal(df, kind='bar', group='date', labels='topics', values='topic_counts',
+                     mapping=True, log=False, path=None):
+
     color_mapping = set_up_mapping()
     fig = go.Figure()
 
-    # Add traces, one for each slider step
-    l = []
-    for n, grp in df.groupby(group):
-        if mapping:
-            fig.add_trace(
+    def add_trace():
+        if kind == 'bar':
+            fig.add_trace(go.Bar(
+                visible=False,
+                name=f"{group} = " + str(n),
+                x=grp[labels],
+                y=grp[values]
+        ))
+        elif kind == 'pie':
+            if mapping:
+                fig.add_trace(
                     go.Pie(
                         visible=False,
                         name=f"{group} = " + str(n),
                         labels=grp[labels],
                         values=grp[values],
-                    marker_colors=grp[labels].map(color_mapping))
-            )
-        else:
-            fig.add_trace(
+                        marker_colors=grp[labels].map(color_mapping))
+                )
+            else:
+                fig.add_trace(
                     go.Pie(
                         visible=False,
                         name=f"{group} = " + str(n),
                         labels=grp[labels],
                         values=grp[values])
-            )
+                )
+
+
+    # Add traces, one for each slider step
+    l = []
+    for n, grp in df.groupby(group):
+        add_trace()
         l.append(n)
 
     # Make 1st trace visible
@@ -72,8 +89,48 @@ def plot_topics_pies(df, group='date', labels='topics', values='topic_counts', m
         width=1000,
         height=1000
     )
+    if log and kind == 'bar':
+        fig.update_yaxes(type="log")
 
     fig.show()
     if path is not None:
         fig.write_html(path)
 
+def plot_simple(df, kind='bar', labels='topics', values='topic_counts', mapping=True, log=False, path=None):
+
+    color_mapping = set_up_mapping()
+    fig = go.Figure()
+
+    def add_trace():
+        if kind == 'bar':
+            fig.add_trace(go.Bar(
+                x=df[labels],
+                y=df[values]
+            ))
+        elif kind == 'pie':
+            if mapping:
+                fig.add_trace(
+                    go.Pie(
+                        labels=df[labels],
+                        values=df[values],
+                        marker_colors=df[labels].map(color_mapping))
+                )
+            else:
+                fig.add_trace(
+                    go.Pie(
+                        labels=df[labels],
+                        values=df[values])
+                )
+
+    add_trace()
+    fig.update_layout(
+        autosize=False,
+        width=1000,
+        height=1000
+    )
+    if log and kind == 'bar':
+        fig.update_yaxes(type="log")
+
+    fig.show()
+    if path is not None:
+        fig.write_html(path)
