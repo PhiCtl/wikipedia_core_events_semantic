@@ -85,8 +85,8 @@ def filter_data(df, project, dates, remove_false_pos=True):
                              ~df_filt.page.isin(specials_to_filt) \
                              & (df_filt.counts >= 1))
 
-    if remove_false_pos:
-        df_filt = collect_false_positive(df_filt)
+    # if remove_false_pos:
+    #     df_filt = collect_false_positive(df_filt)
 
     return df_filt
 
