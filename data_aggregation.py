@@ -50,7 +50,7 @@ def setup_data(years, months, path="/scratch/descourt/pageviews"):
 
 def specials(project):
     if project == 'en.wikipedia':
-        return ['main_page', '-']
+        return ['main_page', '-', 'search']
     # TODO refine for french edition
     elif project == 'fr.wikipedia':
         return ['wikipédia:accueil_principal', '-', 'spécial:recherche' 'special:search']
@@ -137,22 +137,56 @@ def collect_false_positive(df_to_clean, lim=200, thresh=1e3):
     return df_to_clean.join(df_FP.select('date', 'page', 'toDelete'), on=['page', 'date'], how='left').where(col('toDelete').isNull())
 
 
-def aggregate_data(df, match_ids=True):
+def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
     """
     Compute the aggregated number of views for each page per month,
     Filter out views without page id
     Compute page ranking per month according to total aggregated page views
     """
+    # Just to make sure we don't have two processing steps
+    assert(((not match_ids) & (not match_ids_per_access_type)) ^ (match_ids ^ match_ids_per_access_type))
+
+    if match_ids_per_access_type:
+
+        # 1. Sorting by descending aggregated counts and grouping by page, select first page id
+        # = get main page id for all linking redirects
+        w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
+        df_agg = df.groupBy('date', 'page', 'page_id', 'access_type') \
+            .agg(sum('counts').alias('tot_count_views')) \
+            .withColumn('page_id', first('page_id').over(w)).cache()
+
+        # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
+        # = get main page titles for all page ids
+        w = Window.partitionBy('date', 'page_id', 'access_type').orderBy(col("tot_count_views").desc())
+        df_agg = df_agg.withColumn('page', first('page').over(w)).cache()
+        # Remove annoying pages where the page id is null
+        df_agg = df_agg.where(~col('page_id').isNull() & ~(df_agg.page_id == 'null'))
+
+        # 3. SUm by access type, page, page id, date
+        df_agg = df_agg.groupBy('date', 'page', 'page_id', 'access_type').agg(
+            sum('tot_count_views').alias('tot_count_views')).cache()
+
+        # Gather info
+        df_agg_D = df_agg.where('access_type = "desktop"').groupBy('date', 'page', 'page_id').agg(
+            sum('tot_count_views').alias('desktop_views')).cache()
+        df_agg_M = df_agg.where(df_agg.access_type.contains('mobile')).groupBy('date', 'page', 'page_id').agg(
+            sum('tot_count_views').alias('mobile_views')).cache()
+        df_agg_f = df_agg_D.join(df_agg_M, on=['date', 'page', 'page_id'], how='full_outer').cache()
+
+        return df_agg_f
+
     if match_ids:
 
         # 1. Aggregate counts by page title and page ids &
         #    Sorting by descending aggregated counts and grouping by page, select first page id
+        # = Get main page id for all redirects
         w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
         df_agg = df.groupBy('date', 'page', 'page_id') \
             .agg(sum('counts').alias('tot_count_views')) \
             .withColumn('page_id', first('page_id').over(w))
 
         # 2. Sorting by descending aggregated counts and grouping by page id, select first page title
+        # = Gather all redirects and main page counts
         w = Window.partitionBy('date', 'page_id').orderBy(col("tot_count_views").desc())
         df_agg = df_agg.withColumn('page', first('page').over(w))
 
