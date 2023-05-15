@@ -7,9 +7,8 @@ import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 
-from data_aggregation import *
 from ranking_helpers import merge_index
-from pages_groups_extraction import extract_high_volume
+from pages_groups_extraction import extract_volume
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 conf = pyspark.SparkConf().setMaster("local[5]").setAll([
@@ -94,6 +93,49 @@ def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
     return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id') #, col(f'{d1}_nn').alias(f'rank_{d1}'),
                                                     # col(f'{d2}_nn').alias(f'rank_{d2}'))
 
+
+def RTD_0_sp(rks, d1, d2, N1, N2):
+    """
+    Compute rank turbulence divergence for alpha = 0 between date d1 and d2 for pages in rks
+    :param rks: dataframe with columns d1 and d2
+    :param d1: string date 1 in format YYYY-MM
+    :param d2: string date 2 in format YYYY-MM
+    :param N1: number of elements at d1
+    :param N2: number of elements at d2
+    """
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id')
+    tmp_1 = computations.where(~col(d1).isNull()).withColumn('abs_ln_r1_Ns', abs(log(col(d1) / (N1 + 1 / 2 * N2))))
+    tmp_2 = computations.where(~col(d2).isNull()).withColumn('abs_ln_r2_Ns', abs(log(col(d2) / (N2 + 1 / 2 * N1))))
+
+    N = tmp_1.select(sum('abs_ln_r1_Ns').alias('dn1')).collect()[0][0] + \
+        tmp_2.select(sum('abs_ln_r2_Ns').alias('dn2')).collect()[0][0]
+
+    computations = computations.withColumn('abs_ln_r1_r2', abs(log(col(d1 + '_nn') / col(d2 + '_nn'))))
+    computations = computations.withColumn(f'div_{d2}', col('abs_ln_r1_r2') / N)
+
+    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id')
+
+
+def RTD_inf_sp(rks, d1, d2):
+    """
+    Compute rank turbulence divergence for alpha = inf between date d1 and d2 for pages in rks
+    :param rks: dataframe with columns d1 and d2
+    :param d1: string date 1 in format YYYY-MM
+    :param d2: string date 2 in format YYYY-MM
+    """
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id')
+    tmp_1 = computations.where(~col(d1).isNull()).withColumn('1_r1', 1 / col(d1))
+    tmp_2 = computations.where(~col(d2).isNull()).withColumn('1_r2', 1 / col(d2))
+
+    N = tmp_1.select(sum('1_r1').alias('dn1')).collect()[0][0] + tmp_2.select(sum('1_r2').alias('dn2')).collect()[0][0]
+
+    computations = computations.withColumn('max_r1_r2', when(col(d1 + '_nn') == col(d2 + '_nn'), 0).otherwise(
+        greatest(1 / col(d1 + '_nn'), 1 / col(d2 + '_nn'))))
+    computations = computations.withColumn(f'div_{d2}', col('max_r1_r2') / N)
+
+    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id')
+
+
 def augment_div(df, rg_rk, dates, df_ranks):
     """
     Augment divergence dataframe with other statistics
@@ -139,7 +181,7 @@ if __name__ == '__main__':
         dfs = spark.read.parquet(os.path.join(save_path, "pageviews_en_2015-2023.parquet")).select(col('fractional_rank').alias('rank'), 'page', 'page_id', 'date', 'tot_count_views')
 
         # Extract high volume core
-        df_high_volume = extract_high_volume(dfs)
+        df_high_volume = extract_volume(dfs, high=True)
 
         # consider date per date
         months = [str(m + 1) if (m + 1) / 10 >= 1 else f"0{m + 1}" for m in range(12)]
