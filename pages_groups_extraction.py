@@ -70,14 +70,14 @@ def find_inflection_point(df):
         .agg(first('perc_views').alias('inf_perc'), first('rank').alias('infl_rank'))
     return df_inflection
 
-def compute_volumes(df):
-    window = Window.partitionBy('date').orderBy('rank')
+def compute_volumes(df, partition='date'):
+    window = Window.partitionBy(partition).orderBy('rank')
 
     df_cutoff = df.withColumn('cum_views', sum('tot_count_views').over(window))
-    df_sum = df.groupBy('date').agg(sum('tot_count_views').alias('tot_count_month'), count('*').alias('nb_pages'))
-    df_cutoff = df_cutoff.join(df_sum, 'date') \
-        .withColumn('perc_views', col('cum_views') / col('tot_count_month') * 100) \
-        .withColumn('perc_rank', col('rank') / col('nb_pages') * 100).drop('nb_pages')
+    df_sum = df.groupBy(partition).agg(sum('tot_count_views').alias('tot_counts'), count('*').alias('tot_nb_pages'))
+    df_cutoff = df_cutoff.join(df_sum, on=partition) \
+        .withColumn('perc_views', col('cum_views') / col('tot_counts') * 100) \
+        .withColumn('perc_rank', col('rank') / col('tot_nb_pages') * 100).drop(['tot_nb_pages', 'tot_counts'])
 
     return df_cutoff
 
