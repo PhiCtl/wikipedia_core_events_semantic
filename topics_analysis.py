@@ -125,7 +125,7 @@ def plot_simple(df, kind='bar', labels='topics', values='topic_counts', mapping=
     add_trace()
     fig.update_layout(
         autosize=False,
-        width=1000,
+        width=1200,
         height=1000
     )
     if log and kind == 'bar':
