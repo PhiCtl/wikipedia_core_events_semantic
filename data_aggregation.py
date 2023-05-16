@@ -291,15 +291,20 @@ def match_missing_ids():
     unmatched_ids = [i['page_id'] for i in dfs_unmatched.select('page_id').distinct().collect()]
     mappings = get_target_id(unmatched_ids)
     mapping_expr = create_map([lit(x) for x in chain(*mappings.items())])
-    dfs_unmatched = dfs_unmatched.withColumn('matched_page_id', mapping_expr[col("page_id")])
+    dfs_unmatched = dfs_unmatched.withColumn('matched_page_id', mapping_expr[col("page_id")]).drop('page_id')
     dfs_unmatched = dfs_unmatched.join(df_topics_sp.select('page_id', 'topics_unique').distinct(),
                                              dfs_unmatched.matched_page_id == df_topics_sp.page_id).cache()
     print(f"New match count {dfs_unmatched.count()}")
 
-    dfs_final_matched = dfs_unmatched.union(dfs_matched)
+    dfs_final_matched = dfs_unmatched.select('page', col('matched_page_id').alias('page_id'), 'tot_count_views', 'date').union(
+        dfs_matched.select('page', 'page_id', 'tot_count_views', 'date'))
+
+    # Compute ranks
+    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    dfs_final_matched = dfs_final_matched.withColumn("rank", row_number().over(window))
+    df_fract = dfs_final_matched.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs_final_matched = dfs_final_matched.join(df_fract, on=['date', 'tot_count_views'])
     dfs_final_matched.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
-
-
 
 if __name__ == '__main__':
     match_missing_ids()
