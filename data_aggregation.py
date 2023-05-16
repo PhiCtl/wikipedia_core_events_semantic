@@ -4,14 +4,14 @@ os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 import time
 import os
-from functools import reduce
-import argparse
 import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 
 from tqdm import tqdm
 from functools import reduce
+from itertools import chain
+import requests
 
 conf = pyspark.SparkConf().setMaster("local[10]").setAll([
     ('spark.driver.memory', '120G'),
@@ -25,6 +25,42 @@ spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
 sc = spark.sparkContext
 sc.setLogLevel('ERROR')
+
+
+def chunk_split(list_of_ids, chunk_len=49):
+    """
+    Split the given list into chunks
+    :param : list_of_ids
+    :param : chunk_len
+    Usage : for Wikipedia API, max 50 approx. simultaneous requests
+    """
+
+    l = []
+    for i in range(0, len(list_of_ids), 49):
+        l.append(list_of_ids[i:i + 49])
+    l.append(list_of_ids[i:])
+    return l
+
+
+def get_target_id(redirects_ids):
+    """
+    Gets target page id from redirects page id
+    """
+
+    mapping = {}
+
+    for chunk in tqdm(chunk_split(redirects_ids)):
+        params = {'action': 'query', 'format': 'json', 'pageids': '|'.join(chunk), 'redirects': 'True'}
+        result = requests.get(
+            "https://en.wikipedia.org/w/api.php", params=params).json()
+
+        if 'query' in result:
+            mapping.update({r: p for r, p in zip(chunk, result['query']['pages'].keys())})
+        elif 'error' in result:
+            print('ERROR')
+            raise ValueError(result['error'])
+    return mapping
+
 
 
 def setup_data(years, months, path="/scratch/descourt/pageviews"):
@@ -237,85 +273,33 @@ def automated_main():
     dfs = [spark.read.parquet(df) for df in dfs_path]
     reduce(DataFrame.unionAll, dfs).write.parquet(os.path.join(save_path, save_file))
 
+def match_missing_ids():
 
-def main():
-    parser = argparse.ArgumentParser()
+    dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
+    df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
 
-    parser.add_argument('--y',
-                        help="Years to process",
-                        type=str,
-                        nargs='+',
-                        default=['2021'])
-    parser.add_argument('--m',
-                        help="Months to process for each year",
-                        type=int,
-                        nargs='+',
-                        default=[1, 2, 3])
-    parser.add_argument('--path',
-                        type=str,
-                        default="/scratch/descourt/pageviews")
-    parser.add_argument('--save_path',
-                        type=str,
-                        default="/scratch/descourt/processed_data")
-    parser.add_argument('--project',
-                        type=str,
-                        default='en.wikipedia',
-                        help="Project to process")
+    dfs_topics_merged = dfs.drop('rank', 'fractional_rank')\
+                           .where((dfs.page_id != 'null') & col('page_id').isNotNull())\
+                           .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')
+    dfs_matched = dfs_topics_merged.where(col('topics_unique').isNotNull()).drop('topics_unique').cache()
+    dfs_unmatched = dfs_topics_merged.where(col('topics_unique').isNull()).drop('topics_unique').cache()
 
-    args = parser.parse_args()
-    os.makedirs(args.save_path, exist_ok=True)
+    unmatched_count, matched_count = dfs_unmatched.count(), dfs_matched.count()
+    print(f"Tot count {dfs.count()}, unmatched counts {unmatched_count} matched counts {matched_count} sum {unmatched_count + matched_count}")
 
-    months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args.m]
-    dates = [f"{year}-{month}" for year in args.y for month in months]
+    print('Matching the unmatched ids')
+    unmatched_ids = [i['page_id'] for i in dfs_unmatched.select('page_id').distinct().collect()]
+    mappings = get_target_id(unmatched_ids)
+    mapping_expr = create_map([lit(x) for x in chain(*mappings.items())])
+    dfs_unmatched = dfs_unmatched.withColumn('matched_page_id', mapping_expr[col("page_id")])
+    dfs_unmatched = dfs_unmatched.join(df_topics_sp.select('page_id', 'topics_unique').distinct(),
+                                             dfs_unmatched.matched_page_id == df_topics_sp.page_id).cache()
+    print(f"New match count {dfs_unmatched.count()}")
 
-    dfs = setup_data(years=args.y, months=months)
-    df_filt = filter_data(dfs, args.project, dates=dates)
+    dfs_final_matched = dfs_unmatched.union(dfs_matched)
+    dfs_final_matched.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
 
-    df_agg = aggregate_data(df_filt)
-    df_agg.write.parquet(os.path.join(args.save_path, f"pageviews_agg_{args.project}_{'_'.join(args.y)}.parquet"))
-
-    print("Done")
-
-def compute_false_positive_post():
-
-    save_path = "/scratch/descourt/processed_data_050923"
-    os.makedirs(save_path, exist_ok=True)
-    save_file = "pageviews_en_2015-2023_fp.parquet"
-    project = 'en.wikipedia'
-
-    # Process data
-    dfs_fp = []
-    for args_m, args_y in tqdm(zip([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                               [7, 8, 9, 10, 11, 12],
-                               [1, 2, 3]],
-
-                              [['2016', '2017', '2018', '2019', '2020', '2021', '2022'],
-                               ['2015'],
-                               ['2023']])):
-        months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
-        dates = [f"{year}-{month}" for year in args_y for month in months]
-
-        dfs = setup_data(years=args_y, months=months)
-        df_filt = filter_data(dfs, project, dates=dates, remove_false_pos=False)
-
-        # Take top 100 pages (should be a good estimation of actual ranking irr. of redirects)
-        df_agg = df_filt.groupBy('date', 'page').agg(sum('counts').alias('tot_counts')).sort(
-            desc('tot_counts')).limit(200).cache()
-        # Compute number of counts for mobile versus web
-        df_agg = df_agg.join(df_filt.where('access_type = "desktop"').groupBy('date', 'page').agg(
-            sum('counts').alias('tot_counts_desktop')), on=['date', 'page'])
-        df_agg = df_agg.join(
-            df_filt.where('access_type = "mobile-web" OR access_type = "mobile-app"').groupBy('date', 'page').agg(
-                sum('counts').alias('tot_counts_mob')), on=['date', 'page'])
-        # Get false positive titles based on desktop to mobile web views ratio
-        df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mob') >= 50) | (
-                col('tot_counts_desktop') / col('tot_counts_mob') <= 1 / 50)).withColumn('toDelete', lit(1))
-
-        dfs_fp.append(df_FP)
-
-    dfs_fp = reduce(DataFrame.unionAll, dfs_fp)
-    dfs_fp.write.parquet(os.path.join(save_path, save_file))
 
 
 if __name__ == '__main__':
-    compute_false_positive_post()
+    match_missing_ids()
