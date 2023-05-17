@@ -16,17 +16,16 @@ def set_up_mapping(topics=None):
 
     viridis = mpl.colormaps['viridis'].resampled(23)  # geography
     plasma = mpl.colormaps['plasma'].resampled(22)  # culture
-    greys = mpl.colormaps['Greys'].resampled(7) # stem
-    cool = mpl.colormaps['cool'].resampled(12) # history
+    greys = mpl.colormaps['Greys'].resampled(7) # history
+    cool = mpl.colormaps['cool'].resampled(12) # stem
 
     color_mapping = {}
     color_mapping.update({t : c for t, c in zip([t for t in topics if 'geography' in t], viridis.colors)})
     color_mapping.update({t: c for t, c in zip([t for t in topics if 'culture' in t], plasma.colors)})
-    color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], greys.colors)})
-    color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], cool.colors)})
+    color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], greys(np.arange(0,greys.N)))})
+    color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], cool(np.arange(0,cool.N)))})
 
     return color_mapping
-
 
 def plot_temporal(df, kind='bar', group='date', labels='topics', values='topic_counts',
                      mapping=True, log=False, path=None):
