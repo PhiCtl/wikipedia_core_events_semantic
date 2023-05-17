@@ -14,11 +14,11 @@ from functools import reduce
 from itertools import chain
 import requests
 
-conf = pyspark.SparkConf().setMaster("local[10]").setAll([
-    ('spark.driver.memory', '120G'),
-    ('spark.executor.memory', '120G'),
+conf = pyspark.SparkConf().setMaster("local[3]").setAll([
+    ('spark.driver.memory', '50G'),
+    ('spark.executor.memory', '50G'),
     ('spark.driver.maxResultSize', '0'),
-    ('spark.executor.cores', '10'),
+    ('spark.executor.cores', '3'),
     ('spark.local.dir', '/scratch/descourt/spark')
 ])
 # create the session
