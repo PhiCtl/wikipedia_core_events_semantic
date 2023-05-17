@@ -3,22 +3,28 @@ from ipywidgets import interactive, HBox, VBox
 import plotly.offline as py
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib import cm
 
-from random import shuffle
+import matplotlib as mpl
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
 def set_up_mapping(topics=None):
-    # Set up colors and mapping so that it is consistent whenever we make the plot
-    with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
-        lines = f.read()
-    colors = lines.replace('\n', '').replace(' ', '').split(',')[:64]
 
     if topics is None:
         with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
             lines = f.read()
         topics = lines.replace('\n', '').replace("'", '').split(',')
 
-    color_mapping = {t: c for t, c in zip(topics, colors)}
+    viridis = mpl.colormaps['viridis'].resampled(23)  # geography
+    plasma = mpl.colormaps['plasma'].resampled(22)  # culture
+    greys = mpl.colormaps['Greys'].resampled(7) # stem
+    cool = mpl.colormaps['cool'].resampled(12) # history
+
+    color_mapping = {}
+    color_mapping.update({t : c for t, c in zip([t for t in topics if 'geography' in t], viridis.colors)})
+    color_mapping.update({t: c for t, c in zip([t for t in topics if 'culture' in t], plasma.colors)})
+    color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], greys.colors)})
+    color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], cool.colors)})
+
     return color_mapping
 
 
