@@ -36,8 +36,8 @@ def chunk_split(list_of_ids, chunk_len=49):
     """
 
     l = []
-    for i in range(0, len(list_of_ids), 49):
-        l.append(list_of_ids[i:i + 49])
+    for i in range(0, len(list_of_ids), chunk_len):
+        l.append(list_of_ids[i:i + chunk_len])
     l.append(list_of_ids[i:])
     return l
 
@@ -48,8 +48,9 @@ def get_target_id(redirects_ids):
     """
 
     mapping = {}
+    chunks = chunk_split(redirects_ids)
 
-    for chunk in tqdm(chunk_split(redirects_ids)):
+    for chunk in tqdm(chunks):
         params = {'action': 'query', 'format': 'json', 'pageids': '|'.join(chunk), 'redirects': 'True'}
         result = requests.get(
             "https://en.wikipedia.org/w/api.php", params=params).json()
