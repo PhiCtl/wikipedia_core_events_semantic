@@ -16,13 +16,13 @@ def set_up_mapping(topics=None):
 
     viridis = mpl.colormaps['viridis'].resampled(23)  # geography
     plasma = mpl.colormaps['plasma'].resampled(22)  # culture
-    greys = mpl.colormaps['Greys'].resampled(7) # history
+    spring = mpl.colormaps['spring'].resampled(7) # history
     cool = mpl.colormaps['cool'].resampled(12) # stem
 
     color_mapping = {}
     color_mapping.update({t : c for t, c in zip([t for t in topics if 'geography' in t], viridis.colors)})
     color_mapping.update({t: c for t, c in zip([t for t in topics if 'culture' in t], plasma.colors)})
-    color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], greys(np.arange(0,greys.N)))})
+    color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], spring(np.arange(0,spring.N)))})
     color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], cool(np.arange(0,cool.N)))})
 
     return color_mapping
@@ -139,3 +139,23 @@ def plot_simple(df, kind='bar', labels='topics', values='topic_counts', mapping=
     fig.show()
     if path is not None:
         fig.write_html(path)
+
+def plot_perc_topics(df, fontsize=10, path="/home/descourt/interm_results/data_presentation/perc_pages_90_topics_highvol.jpg"):
+
+    fig, axs = plt.subplots(figsize=(20,15), nrows=2, ncols=2, sharex=True)
+    df = df.sort_values('unique_topic')
+
+    for ax, (_, group) in zip(axs.flatten(), df.groupby('subtopic')):
+        n = len(group['color'].values)
+        for std, mean, color, pos in zip(group[('90_perc_views_rank', 'std')],group[('90_perc_views_rank', 'mean')], group['color'], range(n)):
+            ax.plot((mean - 1.96*std/np.sqrt(93) ,mean + 1.96*std/np.sqrt(93)), (pos,pos),'o-',color=color)
+        ax.set_yticks(range(n), list(group['unique_topic']), fontsize=fontsize)
+        ax.tick_params('x', labelbottom=True)
+
+    fig.supylabel('Topics', fontsize=15)
+    fig.supxlabel('Percentage of pages', fontsize=15)
+    fig.suptitle('Percentage of pages contributing to 90% of views per topic', fontsize=15)
+
+    fig.tight_layout()
+    plt.show()
+    plt.savefig(path)
