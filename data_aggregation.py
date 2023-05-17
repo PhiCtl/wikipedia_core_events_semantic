@@ -103,7 +103,7 @@ def filter_data(df, project, dates, remove_false_pos=True):
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
         .filter(df.date.isin(dates)) \
-        .select(lower(col('page')).alias('page'), 'counts', 'date', 'page_id', 'access_type')
+        .select(lower(col('page')).alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type')
     df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
                              ~df_filt.page.contains('wikipedia:') & \
                              ~df_filt.page.contains('file:') & \
@@ -275,9 +275,11 @@ def automated_main():
 
 def match_missing_ids():
 
+    print('Load data')
     dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
     df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
 
+    print('Merge with topics and check what matches')
     dfs_topics_merged = dfs.drop('rank', 'fractional_rank')\
                            .where((dfs.page_id != 'null') & col('page_id').isNotNull())\
                            .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')
@@ -293,17 +295,24 @@ def match_missing_ids():
     mapping_expr = create_map([lit(x) for x in chain(*mappings.items())])
     dfs_unmatched = dfs_unmatched.withColumn('matched_page_id', mapping_expr[col("page_id")]).drop('page_id')
     dfs_unmatched = dfs_unmatched.join(df_topics_sp.select('page_id', 'topics_unique').distinct(),
-                                             dfs_unmatched.matched_page_id == df_topics_sp.page_id).cache()
-    print(f"New match count {dfs_unmatched.count()}")
+                                             dfs_unmatched.matched_page_id == df_topics_sp.page_id, 'left').cache()
+    print(f"New match count in unmatched {dfs_unmatched.where(col('topics_unique').isNotNull()).count()}")
 
     dfs_final_matched = dfs_unmatched.select('page', col('matched_page_id').alias('page_id'), 'tot_count_views', 'date').union(
         dfs_matched.select('page', 'page_id', 'tot_count_views', 'date'))
 
-    # Compute ranks
+    print("Match the pages with the ids and recompute the tot view counts")
+    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
+    dfs_final_matched = dfs_final_matched.withColumn('page', first('page').over(w))
+    dfs_final_matched = dfs_final_matched.groupBy('date', 'page_id', 'page').agg(sum('tot_count_views').alias('tot_count_views'))
+
+    print("Compute ranks")
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
     dfs_final_matched = dfs_final_matched.withColumn("rank", row_number().over(window))
     df_fract = dfs_final_matched.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
     dfs_final_matched = dfs_final_matched.join(df_fract, on=['date', 'tot_count_views'])
+
+    print("Write to file")
     dfs_final_matched.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
 
 if __name__ == '__main__':
