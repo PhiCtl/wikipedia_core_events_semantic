@@ -4,6 +4,7 @@ os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 import time
 import os
+import pickle
 import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
@@ -316,5 +317,26 @@ def match_missing_ids():
     print("Write to file")
     dfs_final_matched.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
 
+def download_mappings():
+    print('Load data')
+    dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
+    df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
+
+    print('Merge with topics and check what matches')
+    dfs_topics_merged = dfs.drop('rank', 'fractional_rank')\
+                           .where((dfs.page_id != 'null') & col('page_id').isNotNull())\
+                           .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')
+
+    dfs_unmatched = dfs_topics_merged.where(col('topics_unique').isNull()).drop('topics_unique').cache()
+
+    print('Matching the unmatched ids')
+    unmatched_ids = [i['page_id'] for i in dfs_unmatched.select('page_id').distinct().collect()]
+    mappings = get_target_id(unmatched_ids)
+    with open("/scratch/descourt/topics/mappings_ids.pickle", "wb") as handle:
+        pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print("Done")
+
+
 if __name__ == '__main__':
-    match_missing_ids()
+    download_mappings()
