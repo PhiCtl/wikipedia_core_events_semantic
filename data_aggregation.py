@@ -339,13 +339,17 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=False):
     Further matching is needed between redirects and target pages in some cases
     Here we make use of the topic-page dataset which encloses all the possible target page ids,
     and check when we cannot match a topic to a page based on its id
+    Either this id is a page which didn't exist at the time the topic-page dataset was extracted,
+    either this is a redirect id
+
+    We then query Wikipedia's API to match the redirect page id with the target page id
     """
 
     print('Load data')
     if dfs is None:
         dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
     if df_topics_sp is None:
-        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
+        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic/topics-enwiki-20230320-parsed.parquet')
 
     print('Merge with topics and retrieve which page_ids do not match')
     df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
