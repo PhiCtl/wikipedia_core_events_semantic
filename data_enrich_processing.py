@@ -1,9 +1,5 @@
 import pandas as pd
 from ast import literal_eval
-import gzip
-import os
-import json
-from tqdm import tqdm
 import pickle
 import numpy as np
 import os
@@ -12,6 +8,8 @@ import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 from pyspark.ml.feature import VectorAssembler
+
+from data_aggregation import get_target_id
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
@@ -27,22 +25,7 @@ conf = pyspark.SparkConf().setMaster("local[*]").setAll([
 spark = SparkSession.builder.config(conf=conf).getOrCreate()
 # create the context
 sc = spark.sparkContext
-# sc.setLogLevel('ERROR')
 
-
-def zip_json(dir_, dir_out):
-    ls_dirs = os.listdir(dir_)
-
-    for subdir in tqdm(ls_dirs):
-        for file in os.listdir(os.path.join(dir_, subdir)):
-            path_in = os.path.join(dir_, subdir, file)
-            with open(path_in, 'r') as f:
-                data = f.read().replace('\n', ',')
-                data = literal_eval(data)
-            os.makedirs(os.path.join(dir_out, subdir), exist_ok=True)
-            path_out = os.path.join(dir_out, subdir, file)
-            with gzip.open(path_out + ".json.gz", 'wt', encoding='utf-8') as f:
-                json.dump(data, f)
 
 def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip",
                  path_out='/home/descourt/topic_embeddings/topics-enwiki-20230320-parsed.parquet'):
@@ -86,6 +69,23 @@ def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embed
     df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
     df_embeds_vec.write.parquet(path_out)
 
+def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality_en_March21.json.gz",
+                      save_interm=True):
+
+    df_quality = spark.read.json(path_scores)
+    rev_ids = [i for i in df_quality.select('revision_id').collect()]
+
+    mappings = get_target_id(rev_ids, request_type='revisions', request_id='revids')
+    if save_interm:
+        with open("/scratch/descourt/quality/mappings_rev2page.pickle", "wb") as handle:
+            pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    mappings_spark = [(k, v) for k, v in mappings.items()]
+    df_matching = spark.createDataFrame(data=mappings_spark, schema=["revision_id", "page_id"])
+
+    df_quality = df_quality.join(df_matching, 'revision_id')
+    df_quality.write.parquet(path_scores.split('.')[0] + '.parquet')
+
 
 if __name__ == '__main__':
-    parse_embeddings()
+    parse_ORES_scores()
