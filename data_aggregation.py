@@ -107,9 +107,10 @@ def get_target_id(redirect_ids):
     """
 
     chunk_list = chunk_split(redirect_ids)
+    print(f"Matching {len(redirect_ids)} ids")
     mapping = {}
 
-    for chunk in chunk_list:
+    for chunk in tqdm(chunk_list):
         params = {'action': 'query', 'format': 'json', 'pageids': '|'.join(chunk),
                   'redirects': 'True', 'prop': 'redirects', 'rdlimit': 'max'}
         for res in query_target_id(params):
