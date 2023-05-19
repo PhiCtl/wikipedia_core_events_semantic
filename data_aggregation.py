@@ -112,9 +112,10 @@ def get_target_id(ids, request_type='redirects', request_id='pageids'):
 
     for chunk in tqdm(chunk_list):
         params = {'action': 'query', 'format': 'json', request_id: '|'.join(chunk),
-                  'prop': request_type, 'rdlimit': 'max'}
+                  'prop': request_type}
         if request_type == 'redirects':
             params[request_type] = 'True'
+            params['rdlimit'] = 'max'
         for res in query_target_id(params):
             m = yield_mapping(res, subprop=request_id[:-1])
             for k in m.keys():
