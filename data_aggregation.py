@@ -11,7 +11,6 @@ from pyspark.sql.functions import *
 
 from tqdm import tqdm
 from functools import reduce
-from itertools import chain
 import requests
 
 conf = pyspark.SparkConf().setMaster("local[5]").setAll([
@@ -44,19 +43,19 @@ def chunk_split(list_of_ids, chunk_len=49):
     return l
 
 
-def yield_mapping(pages):
+def yield_mapping(pages, prop='redirects', subprop='pageid'):
     """
-    Parse API request response to get target page to redirects page ids mapping
+    Parse API request response to get target page to ids mapping
     :param pages: part of API request response
     """
     inv_mapping = {}
 
     # Collect all redirects ids
     for p_id, p in pages.items():
-        if 'redirects' not in p:
+        if prop not in p:
             inv_mapping[p_id] = [p_id]
         else:
-            rids = [str(d['pageid']) for d in p['redirects']]
+            rids = [str(d[subprop]) for d in p[prop]]
             inv_mapping[p_id] = rids
 
     return inv_mapping
@@ -101,34 +100,36 @@ def query_target_id(request):
         lastContinue = result['continue']
 
 
-def get_target_id(redirect_ids):
+def get_target_id(ids, request_type='redirects', request_id='pageids'):
     """
-    Map the redirect pages ids to their target page id
-    :param redirect_ids: list of redirect_ids
+    Map ids to their target page id
+    :param ids: list of ids to match to target page id
     """
 
-    chunk_list = chunk_split(redirect_ids)
-    print(f"Matching {len(redirect_ids)} ids")
+    chunk_list = chunk_split(ids)
+    print(f"Matching {len(ids)} ids")
     mapping = {}
 
     for chunk in tqdm(chunk_list):
-        params = {'action': 'query', 'format': 'json', 'pageids': '|'.join(chunk),
-                  'redirects': 'True', 'prop': 'redirects', 'rdlimit': 'max'}
+        params = {'action': 'query', 'format': 'json', request_id: '|'.join(chunk),
+                  'prop': request_type, 'rdlimit': 'max'}
+        if request_type == 'redirects':
+            params[request_type] = 'True'
         for res in query_target_id(params):
-            m = yield_mapping(res)
+            m = yield_mapping(res, subprop=request_id[:-1])
             for k in m.keys():
                 if k in mapping:
                     mapping[k].extend(m[k])
                 else:
                     mapping[k] = m[k]
-    return invert_mapping(mapping, redirect_ids)
+    return invert_mapping(mapping, ids)
 
 
-def invert_mapping(inv_map, redirect_ids):
+def invert_mapping(inv_map, ids):
     """
     Invert mapping and select relevant keys
     """
-    mapping = {v: k for k, vs in inv_map.items() for v in vs if v in redirect_ids}
+    mapping = {v: k for k, vs in inv_map.items() for v in vs if v in ids}
     return mapping
 
 
