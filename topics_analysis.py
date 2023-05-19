@@ -1,9 +1,11 @@
 import plotly.graph_objs as go
 from ipywidgets import interactive, HBox, VBox
 import plotly.offline as py
-import pandas as pd
-import matplotlib.pyplot as plt
 
+import pandas as pd
+import numpy as np
+
+import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
