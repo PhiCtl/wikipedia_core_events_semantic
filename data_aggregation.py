@@ -14,11 +14,11 @@ from functools import reduce
 from itertools import chain
 import requests
 
-conf = pyspark.SparkConf().setMaster("local[3]").setAll([
-    ('spark.driver.memory', '50G'),
-    ('spark.executor.memory', '50G'),
+conf = pyspark.SparkConf().setMaster("local[5]").setAll([
+    ('spark.driver.memory', '70G'),
+    ('spark.executor.memory', '70G'),
     ('spark.driver.maxResultSize', '0'),
-    ('spark.executor.cores', '3'),
+    ('spark.executor.cores', '5'),
     ('spark.local.dir', '/scratch/descourt/spark')
 ])
 # create the session
@@ -43,6 +43,7 @@ def chunk_split(list_of_ids, chunk_len=49):
         l.append(list_of_ids[i:])
     return l
 
+
 def yield_mapping(pages):
     """
     Parse API request response to get target page to redirects page ids mapping
@@ -60,8 +61,8 @@ def yield_mapping(pages):
 
     return inv_mapping
 
-def query_target_id(request):
 
+def query_target_id(request):
     """
     Query Wikipedia API with specified parameters.
     Adapted From https://github.com/pgilders/WikiNewsNetwork-01-WikiNewsTopics
@@ -99,8 +100,8 @@ def query_target_id(request):
             break
         lastContinue = result['continue']
 
-def get_target_id(redirect_ids):
 
+def get_target_id(redirect_ids):
     """
     Map the redirect pages ids to their target page id
     :param redirect_ids: list of redirect_ids
@@ -122,14 +123,13 @@ def get_target_id(redirect_ids):
                     mapping[k] = m[k]
     return invert_mapping(mapping, redirect_ids)
 
-def invert_mapping(inv_map, redirect_ids):
 
+def invert_mapping(inv_map, redirect_ids):
     """
     Invert mapping and select relevant keys
     """
-    mapping = {v : k for k, vs in inv_map.items() for v in vs if v in redirect_ids}
+    mapping = {v: k for k, vs in inv_map.items() for v in vs if v in redirect_ids}
     return mapping
-
 
 
 def setup_data(years, months, path="/scratch/descourt/pageviews"):
@@ -154,21 +154,29 @@ def setup_data(years, months, path="/scratch/descourt/pageviews"):
 
 
 def specials(project):
+    """
+    Filter out some special pages
+    """
     if project == 'en.wikipedia':
         return ['main_page', '-', 'search']
     # TODO refine for french edition
     elif project == 'fr.wikipedia':
-        return ['wikipédia:accueil_principal', '-', 'spécial:recherche' 'special:search']
+        return ['-']
     elif project == 'es.wikipedia':
-        return ['wikipedia:hauptseite', 'spezial:suche', '-', 'special:search', 'wikipedia']
+        return ['-']
     elif project == 'de.wikipedia':
-        return ['wikipedia', 'wikipedia:portada', 'especial:buscar', '-', 'spécial:recherche', 'special:search']
+        return ['-']
 
 
-def filter_data(df, project, dates, remove_false_pos=True):
+def filter_data(df, project, dates):
     """
     Filter in wanted data from initial dataframe
+    Based on a list of pages to exclude, on the dates we want to include and on the edition we want to study
+    :param df: dataframe (pyspark)
+    :param project: eg. en.wikipedia
+    :param dates: list of strings of format YYYY-MM
     """
+
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
         .filter(df.date.isin(dates)) \
@@ -189,9 +197,6 @@ def filter_data(df, project, dates, remove_false_pos=True):
                              ~df_filt.page.contains('talk:') & \
                              ~df_filt.page.isin(specials_to_filt) \
                              & (df_filt.counts >= 1))
-
-    # if remove_false_pos:
-    #     df_filt = collect_false_positive(df_filt)
 
     return df_filt
 
@@ -215,7 +220,7 @@ def match_ids(df, latest_date, project):
     w = Window.partitionBy('page').orderBy(col("tot_count_views").desc())
     df_pageids = df_latest.groupBy('page', 'page_id') \
         .agg(sum('counts').alias('tot_count_views')) \
-        .withColumn('page_id', first('page_id').over(w))\
+        .withColumn('page_id', first('page_id').over(w)) \
         .select('page', 'page_id').distinct().cache()
 
     # Join on page title to recover page ids if any
@@ -224,35 +229,20 @@ def match_ids(df, latest_date, project):
     return df
 
 
-def collect_false_positive(df_to_clean, lim=200, thresh=1e3):
-
-    """
-    Return data
-    """
-    # Take top 100 pages (should be a good estimation of actual ranking irr. of redirects)
-    df_agg = df_to_clean.groupBy('date', 'page').agg(sum('counts').alias('tot_counts')).sort(desc('tot_counts')).limit(lim).cache()
-    # Compute number of counts for mobile versus web
-    df_agg = df_agg.join(df_to_clean.where('access_type = "desktop"').groupBy('date', 'page').agg(sum('counts').alias('tot_counts_desktop')), on=['date', 'page'])
-    df_agg = df_agg.join(df_to_clean.where('access_type = "mobile-web" OR access_type = "mobile-app"')\
-                                    .groupBy('date', 'page')\
-                                    .agg(sum('counts').alias('tot_counts_mobweb')), on=['date', 'page'])
-    # Get false positive titles based on desktop to mobile web views ratio
-    df_FP = df_agg.where((col('tot_counts_desktop') / col('tot_counts_mobweb') >= thresh) | (col('tot_counts_desktop') / col('tot_counts_mobweb') <= 1 / thresh)).withColumn('toDelete', lit(1))
-
-    return df_to_clean.join(df_FP.select('date', 'page', 'toDelete'), on=['page', 'date'], how='left').where(col('toDelete').isNull())
-
-
 def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
     """
     Compute the aggregated number of views for each page per month,
-    Filter out views without page id
+    Filter out views with "Null" page id
     Compute page ranking per month according to total aggregated page views
+
+    :param df
+    :param match_ids: whether to compute aggregated views based on page_id (if not, based on page title)
+    :param match_ids_per_access_type : whether to compute aggregated views based on page_id and access_type
     """
     # Just to make sure we don't have two processing steps
-    assert(((not match_ids) & (not match_ids_per_access_type)) ^ (match_ids ^ match_ids_per_access_type))
+    assert (((not match_ids) & (not match_ids_per_access_type)) ^ (match_ids ^ match_ids_per_access_type))
 
     if match_ids_per_access_type:
-
         # 1. Sorting by descending aggregated counts and grouping by page, select first page id
         # = get main page id for all linking redirects
         w = Window.partitionBy('date', 'page').orderBy(col("tot_count_views").desc())
@@ -342,67 +332,83 @@ def automated_main():
     dfs = [spark.read.parquet(df) for df in dfs_path]
     reduce(DataFrame.unionAll, dfs).write.parquet(os.path.join(save_path, save_file))
 
-def match_missing_ids():
+
+def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=False):
+
+    """
+    Further matching is needed between redirects and target pages in some cases
+    Here we make use of the topic-page dataset which encloses all the possible target page ids,
+    and check when we cannot match a topic to a page based on its id
+    """
 
     print('Load data')
-    dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
-    df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
+    if dfs is None:
+        dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
+    if df_topics_sp is None:
+        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
 
-    print('Merge with topics and check what matches')
-    dfs_topics_merged = dfs.drop('rank', 'fractional_rank')\
-                           .where((dfs.page_id != 'null') & col('page_id').isNotNull())\
-                           .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')
-    dfs_matched = dfs_topics_merged.where(col('topics_unique').isNotNull()).drop('topics_unique').cache()
-    dfs_unmatched = dfs_topics_merged.where(col('topics_unique').isNull()).drop('topics_unique').cache()
+    print('Merge with topics and retrieve which page_ids do not match')
+    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
+        .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
+        .where(col('topics_unique').isNull()).select('page_id').distinct()
+    unmatched_ids = [p['page_id'] for p in df_unmatched.select('page_id').collect()]
 
-    unmatched_count, matched_count = dfs_unmatched.count(), dfs_matched.count()
-    print(f"Tot count {dfs.count()}, unmatched counts {unmatched_count} matched counts {matched_count} sum {unmatched_count + matched_count}")
-
-    print('Matching the unmatched ids')
-    unmatched_ids = [i['page_id'] for i in dfs_unmatched.select('page_id').distinct().collect()]
+    print('Match the unmatched ids with their target page id')
     mappings = get_target_id(unmatched_ids)
-    mapping_expr = create_map([lit(x) for x in chain(*mappings.items())])
-    dfs_unmatched = dfs_unmatched.withColumn('matched_page_id', mapping_expr[col("page_id")]).drop('page_id')
-    dfs_unmatched = dfs_unmatched.join(df_topics_sp.select('page_id', 'topics_unique').distinct(),
-                                             dfs_unmatched.matched_page_id == df_topics_sp.page_id, 'left').cache()
-    print(f"New match count in unmatched {dfs_unmatched.where(col('topics_unique').isNotNull()).count()}")
-
-    dfs_final_matched = dfs_unmatched.select('page', col('matched_page_id').alias('page_id'), 'tot_count_views', 'date').union(
-        dfs_matched.select('page', 'page_id', 'tot_count_views', 'date'))
-
-    print("Match the pages with the ids and recompute the tot view counts")
-    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
-    dfs_final_matched = dfs_final_matched.withColumn('page', first('page').over(w))
-    dfs_final_matched = dfs_final_matched.groupBy('date', 'page_id', 'page').agg(sum('tot_count_views').alias('tot_count_views'))
-
-    print("Compute ranks")
-    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    dfs_final_matched = dfs_final_matched.withColumn("rank", row_number().over(window))
-    df_fract = dfs_final_matched.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    dfs_final_matched = dfs_final_matched.join(df_fract, on=['date', 'tot_count_views'])
-
-    print("Write to file")
-    dfs_final_matched.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
-
-def download_mappings():
-
-    # TODO merge with above code for the sake of reproducibility
-
-    print('Load redirect_ids')
-    with open("/scratch/descourt/topics/mappings_ids.pickle", "rb") as handle:
-        old_wrong_mapping = pickle.load(handle)
-
-    redirect_ids = [i for i in old_wrong_mapping.keys()]
-
-    print('Matching the unmatched ids')
-    mappings = get_target_id(redirect_ids)
-    with open("/scratch/descourt/topics/mappings_ids_corrected.pickle", "wb") as handle:
-        pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    print("Saving file as parquet for further matching")
+    if save_interm:
+        with open("/scratch/descourt/topics/mappings_ids_corrected.pickle", "wb") as handle:
+            pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
-    df_matching.write.parquet("/scratch/descourt/topics/df_missing_redirects.parquet")
+    if save_interm:
+        df_matching.write.parquet("/scratch/descourt/topics/df_missing_redirects.parquet")
+    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
+    # The left unmatched page_ids correspond in fact already to target pages,
+    # so their own id could not be matched and we replace it with original id
+    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
+
+    print("Recompute the tot view counts")
+    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
+    dfs = dfs.withColumn('page', first('page').over(w))
+    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
+        sum('tot_count_views').alias('tot_count_views'))
+
+    print("Recompute ordinal and fractional ranks")
+    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    dfs = dfs.withColumn("rank", row_number().over(window))
+    df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
+
+    print("Write to file")
+    dfs.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
+
+    print("Done")
+
+def download_mappings():
+    # TODO merge with above code for the sake of reproducibility
+
+    print('Load redirect_ids and join')
+    df_matching = spark.read.parquet("/scratch/descourt/topics/df_missing_redirects.parquet")
+    dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
+    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
+    # The left unmatched page_ids correspond in fact already to target pages,
+    # so their own id could not be matched and we replace it with original id
+    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
+
+    print("Recompute the tot view counts")
+    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
+    dfs = dfs.withColumn('page', first('page').over(w))
+    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
+        sum('tot_count_views').alias('tot_count_views'))
+
+    print("Recompute ordinal and fractional ranks")
+    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    dfs = dfs.withColumn("rank", row_number().over(window))
+    df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
+
+    print("Write to file")
+    dfs.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
 
     print("Done")
 
