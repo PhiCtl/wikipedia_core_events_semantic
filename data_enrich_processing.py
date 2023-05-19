@@ -73,7 +73,7 @@ def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality
                       save_interm=True):
 
     df_quality = spark.read.json(path_scores)
-    rev_ids = [i['revision_id'] for i in df_quality.select('revision_id').distinct().collect()]
+    rev_ids = [str(i['revision_id']) for i in df_quality.select('revision_id').distinct().collect()]
 
     mappings = get_target_id(rev_ids, request_type='revisions', request_id='revids')
     if save_interm:
