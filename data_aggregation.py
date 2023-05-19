@@ -39,28 +39,94 @@ def chunk_split(list_of_ids, chunk_len=49):
     l = []
     for i in range(0, len(list_of_ids), chunk_len):
         l.append(list_of_ids[i:i + chunk_len])
-    l.append(list_of_ids[i:])
+    if len(l) * 49 < len(list_of_ids):
+        l.append(list_of_ids[i:])
     return l
 
-
-def get_target_id(redirects_ids):
+def yield_mapping(pages):
     """
-    Gets target page id from redirects page id
+    Parse API request response to get target page to redirects page ids mapping
+    :param pages: part of API request response
+    """
+    inv_mapping = {}
+
+    # Collect all redirects ids
+    for p_id, p in pages.items():
+        if 'redirects' not in p:
+            inv_mapping[p_id] = [p_id]
+        else:
+            rids = [str(d['pageid']) for d in p['redirects']]
+            inv_mapping[p_id] = rids
+
+    return inv_mapping
+
+def query_target_id(request):
+
+    """
+    Query Wikipedia API with specified parameters.
+    Adapted From https://github.com/pgilders/WikiNewsNetwork-01-WikiNewsTopics
+    Parameters
+    ----------
+    request : dict
+        API call parameters.
+    Raises
+    ------
+    ValueError
+        Raises error if returned by API.
+    Yields
+    ------
+    dict
+        Subsequent dicts of json API response.
     """
 
-    mapping = {}
-    chunks = chunk_split(redirects_ids)
-
-    for chunk in tqdm(chunks):
-        params = {'action': 'query', 'format': 'json', 'pageids': '|'.join(chunk), 'redirects': 'True'}
+    lastContinue = {}
+    while True:
+        # Clone original request
+        req = request.copy()
+        # Modify with values from the 'continue' section of the last result.
+        req.update(lastContinue)
+        # Call API
         result = requests.get(
-            "https://en.wikipedia.org/w/api.php", params=params).json()
-
-        if 'query' in result:
-            mapping.update({r: p for r, p in zip(chunk, result['query']['pages'].keys())})
-        elif 'error' in result:
+            'https://en.wikipedia.org/w/api.php', params=req).json()
+        if 'error' in result:
             print('ERROR')
             raise ValueError(result['error'])
+        if 'warnings' in result:
+            print(result['warnings'])
+        if 'query' in result:
+            yield result['query']['pages']
+        if 'continue' not in result:
+            break
+        lastContinue = result['continue']
+
+def get_target_id(redirect_ids):
+
+    """
+    Map the redirect pages ids to their target page id
+    :param redirect_ids: list of redirect_ids
+    """
+
+    chunk_list = chunk_split(redirect_ids)
+    mapping = {}
+
+    for chunk in chunk_list:
+        params = {'action': 'query', 'format': 'json', 'pageids': '|'.join(chunk),
+                  'redirects': 'True', 'prop': 'redirects', 'rdlimit': 'max'}
+        for res in query_target_id(params):
+            m = yield_mapping(res)
+            for k in m.keys():
+                if k in mapping:
+                    mapping[k].extend(m[k])
+                else:
+                    mapping[k] = m[k]
+    return invert_mapping(mapping, redirect_ids)
+
+def invert_mapping(inv_map, redirect_ids):
+
+    """
+    Invert mapping and select relevant keys
+    """
+    mapping = {v : k for k, vs in inv_map.items() for v in vs if v in redirect_ids}
     return mapping
 
 
@@ -318,22 +384,24 @@ def match_missing_ids():
     dfs_final_matched.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
 
 def download_mappings():
-    print('Load data')
-    dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
-    df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topics-enwiki-20230320-parsed.parquet')
 
-    print('Merge with topics and check what matches')
-    dfs_topics_merged = dfs.drop('rank', 'fractional_rank')\
-                           .where((dfs.page_id != 'null') & col('page_id').isNotNull())\
-                           .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')
+    # TODO merge with above code for the sake of reproducibility
 
-    dfs_unmatched = dfs_topics_merged.where(col('topics_unique').isNull()).drop('topics_unique').cache()
+    print('Load redirect_ids')
+    with open("/scratch/descourt/topics/mappings_ids.pickle", "rb") as handle:
+        old_wrong_mapping = pickle.load(handle)
+
+    redirect_ids = [i for i in old_wrong_mapping.keys()]
 
     print('Matching the unmatched ids')
-    unmatched_ids = [i['page_id'] for i in dfs_unmatched.select('page_id').distinct().collect()]
-    mappings = get_target_id(unmatched_ids)
-    with open("/scratch/descourt/topics/mappings_ids.pickle", "wb") as handle:
+    mappings = get_target_id(redirect_ids)
+    with open("/scratch/descourt/topics/mappings_ids_corrected.pickle", "wb") as handle:
         pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print("Saving file as parquet for further matching")
+    mappings_spark = [(k, v) for k, v in mappings.items()]
+    df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
+    df_matching.write.parquet("/scratch/descourt/topics/df_missing_redirects.parquet")
 
     print("Done")
 
