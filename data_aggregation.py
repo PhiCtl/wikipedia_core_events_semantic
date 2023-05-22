@@ -418,4 +418,4 @@ def download_mappings():
 
 
 if __name__ == '__main__':
-    download_mappings()
+    match_missing_ids()
