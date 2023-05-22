@@ -14,8 +14,8 @@ from functools import reduce
 import requests
 
 conf = pyspark.SparkConf().setMaster("local[5]").setAll([
-    ('spark.driver.memory', '70G'),
-    ('spark.executor.memory', '70G'),
+    ('spark.driver.memory', '100G'),
+    ('spark.executor.memory', '100G'),
     ('spark.driver.maxResultSize', '0'),
     ('spark.executor.cores', '5'),
     ('spark.local.dir', '/scratch/descourt/spark')
