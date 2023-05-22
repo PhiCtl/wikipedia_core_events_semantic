@@ -118,7 +118,7 @@ def get_target_id(ids, request_type='redirects', request_id='pageids'):
             params[request_type] = 'True'
             params['rdlimit'] = 'max'
         for res in query_target_id(params):
-            m = yield_mapping(res, subprop=request_id[:-1])
+            m = yield_mapping(res, prop=request_type, subprop=request_id[:-1])
             mapping.update({k : v for k, v in m.items() if k in chunk})
 
     return mapping
