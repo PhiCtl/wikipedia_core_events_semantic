@@ -158,7 +158,7 @@ def specials(project):
     Filter out some special pages
     """
     if project == 'en.wikipedia':
-        return ['main_page', '-', 'search']
+        return ['Main_Page', '-', 'Search']
     # TODO refine for french edition
     elif project == 'fr.wikipedia':
         return ['-']
@@ -180,7 +180,7 @@ def filter_data(df, project, dates):
     specials_to_filt = specials(project)
     df_filt = df.where(f"project = '{project}'") \
         .filter(df.date.isin(dates)) \
-        .select(lower(col('page')).alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type')
+        .select(col('page').alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type')
     df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
                              ~df_filt.page.contains('wikipedia:') & \
                              ~df_filt.page.contains('file:') & \
@@ -301,7 +301,7 @@ def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
 
 
 def automated_main():
-    save_path = "/scratch/descourt/processed_data_050223"
+    save_path = "/scratch/descourt/processed_data_052223"
     os.makedirs(save_path, exist_ok=True)
     save_file = "pageviews_agg_en_2015-2023.parquet"
     project = 'en.wikipedia'
@@ -418,4 +418,4 @@ def download_mappings():
 
 
 if __name__ == '__main__':
-    match_missing_ids()
+    automated_main()
