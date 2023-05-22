@@ -360,12 +360,12 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     print('Match the unmatched ids with their target page id')
     mappings = get_target_id(unmatched_ids)
     if save_interm:
-        with open("/scratch/descourt/topics/mappings_ids_corrected.pickle", "wb") as handle:
+        with open("/scratch/descourt/topics/topic/mappings_ids_corrected.pickle", "wb") as handle:
             pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
     if save_interm:
-        df_matching.write.parquet("/scratch/descourt/topics/df_missing_redirects.parquet")
+        df_matching.write.parquet("/scratch/descourt/topics/topic/df_missing_redirects.parquet")
     dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
     # The left unmatched page_ids correspond in fact already to target pages,
     # so their own id could not be matched and we replace it with original id
