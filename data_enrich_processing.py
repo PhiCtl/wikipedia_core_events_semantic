@@ -14,11 +14,10 @@ from data_aggregation import get_target_id
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','32'
-                                                          'G'),
-                                   ('spark.executor.memory', '32G'),
+                                   ('spark.driver.memory','70G'),
+                                   ('spark.executor.memory', '70G'),
                                    ('spark.driver.maxResultSize', '0'),
-                                    ('spark.executor.cores', '10'),
+                                    ('spark.executor.cores', '5'),
                                     ('spark.local.dir', '/scratch/descourt/spark')
                                   ])
 # create the session
