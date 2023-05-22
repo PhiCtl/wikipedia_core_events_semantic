@@ -77,7 +77,7 @@ def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality
 
     mappings = get_target_id(rev_ids, request_type='revisions', request_id='revids')
     if save_interm:
-        with open("/scratch/descourt/quality/mappings_rev2page.pickle", "wb") as handle:
+        with open("/scratch/descourt/topics/quality/mappings_rev2page.pickle", "wb") as handle:
             pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     mappings_spark = [(k, v) for k, v in mappings.items()]

@@ -48,17 +48,18 @@ def yield_mapping(pages, prop='redirects', subprop='pageid'):
     Parse API request response to get target page to ids mapping
     :param pages: part of API request response
     """
-    inv_mapping = {}
+    mapping = {}
 
     # Collect all redirects ids
     for p_id, p in pages.items():
         if prop not in p:
-            inv_mapping[p_id] = [p_id]
+            mapping[p_id] = [p_id]
         else:
             rids = [str(d[subprop]) for d in p[prop]]
-            inv_mapping[p_id] = rids
+            for r in rids:
+                mapping[r] = p_id
 
-    return inv_mapping
+    return mapping
 
 
 def query_target_id(request):
@@ -118,12 +119,9 @@ def get_target_id(ids, request_type='redirects', request_id='pageids'):
             params['rdlimit'] = 'max'
         for res in query_target_id(params):
             m = yield_mapping(res, subprop=request_id[:-1])
-            for k in m.keys():
-                if k in mapping:
-                    mapping[k].extend(m[k])
-                else:
-                    mapping[k] = m[k]
-    return invert_mapping(mapping, ids)
+            mapping.update({k : v for k, v in m.items() if k in chunk})
+
+    return mapping
 
 
 def invert_mapping(inv_map, ids):
