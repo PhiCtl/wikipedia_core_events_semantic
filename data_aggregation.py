@@ -132,7 +132,7 @@ def invert_mapping(inv_map, ids):
     return mapping
 
 
-def setup_data(years, months, path="/scratch/descourt/pageviews"):
+def setup_data(years, months, path="/scratch/descourt/pageviews_en"):
     """
     Load and prepare wikipedia projects pageviews data for given year and month
     :return pyspark dataframe
