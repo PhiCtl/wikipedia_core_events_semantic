@@ -333,7 +333,7 @@ def automated_main():
     reduce(DataFrame.unionAll, dfs).write.parquet(os.path.join(save_path, save_file))
 
 
-def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=False):
+def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     """
     Further matching is needed between redirects and target pages in some cases
