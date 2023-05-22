@@ -53,7 +53,7 @@ def yield_mapping(pages, prop='redirects', subprop='pageid'):
     # Collect all redirects ids
     for p_id, p in pages.items():
         if prop not in p:
-            mapping[p_id] = [p_id]
+            mapping[p_id] = p_id
         else:
             rids = [str(d[subprop]) for d in p[prop]]
             for r in rids:
