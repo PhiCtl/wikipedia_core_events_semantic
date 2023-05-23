@@ -347,7 +347,7 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print('Load data')
     if dfs is None:
-        dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
+        dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_agg_en_2015-2023.parquet")
     if df_topics_sp is None:
         df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic/topics-enwiki-20230320-parsed.parquet')
 
@@ -385,34 +385,6 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print("Write to file")
     dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
-
-    print("Done")
-
-def download_mappings():
-    # TODO merge with above code for the sake of reproducibility
-
-    print('Load redirect_ids and join')
-    df_matching = spark.read.parquet("/scratch/descourt/topics/df_missing_redirects.parquet")
-    dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
-    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
-    # The left unmatched page_ids correspond in fact already to target pages,
-    # so their own id could not be matched and we replace it with original id
-    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
-
-    print("Recompute the tot view counts")
-    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
-    dfs = dfs.withColumn('page', first('page').over(w))
-    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
-        sum('tot_count_views').alias('tot_count_views'))
-
-    print("Recompute ordinal and fractional ranks")
-    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    dfs = dfs.withColumn("rank", row_number().over(window))
-    df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
-
-    print("Write to file")
-    dfs.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
 
     print("Done")
 
