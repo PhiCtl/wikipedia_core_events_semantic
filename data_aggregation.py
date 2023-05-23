@@ -301,10 +301,10 @@ def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
 
 
 def automated_main():
-    save_path = "/scratch/descourt/processed_data_052223"
+    save_path = "/scratch/descourt/processed_data_052223_fr"
     os.makedirs(save_path, exist_ok=True)
-    save_file = "pageviews_agg_en_2015-2023.parquet"
-    project = 'en.wikipedia'
+    save_file = "pageviews_agg_fr_2015-2023.parquet"
+    project = 'fr.wikipedia'
 
     # Process data
     for args_m, args_y in zip([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -317,7 +317,7 @@ def automated_main():
         months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
         dates = [f"{year}-{month}" for year in args_y for month in months]
 
-        dfs = setup_data(years=args_y, months=months)
+        dfs = setup_data(years=args_y, months=months, path="/scratch/descourt/pageviews_fr")
 
         # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
         if '2015' in args_y:
@@ -355,7 +355,7 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
         .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
         .where(col('topics_unique').isNull()).select('page_id').distinct()
-    unmatched_ids = [p['page_id'] for p in df_unmatched.select('page_id').collect()]
+    unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
 
     print('Match the unmatched ids with their target page id')
     mappings = get_target_id(unmatched_ids)
