@@ -11,17 +11,7 @@ from ranking_helpers import merge_index
 from pages_groups_extraction import extract_volume
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
-conf = pyspark.SparkConf().setMaster("local[5]").setAll([
-    ('spark.driver.memory', '120G'),
-    ('spark.executor.memory', '120G'),
-    ('spark.driver.maxResultSize', '0'),
-    ('spark.executor.cores', '5'),
-    ('spark.local.dir', '/scratch/descourt/spark')
-])
-# create the session
-spark = SparkSession.builder.config(conf=conf).getOrCreate()
-# create the context
-sc = spark.sparkContext
+
 
 
 def rank_diversity(df, rank_type='rank'):
@@ -167,6 +157,18 @@ def RTD_alpha_0(rks, d1, d2, N1, N2):
     rks[f'div_{d2}'] = 1 / N * np.log(rks[d1 + '_nn'] / rks[d2 + '_nn']).abs()
 
 if __name__ == '__main__':
+
+    conf = pyspark.SparkConf().setMaster("local[5]").setAll([
+        ('spark.driver.memory', '120G'),
+        ('spark.executor.memory', '120G'),
+        ('spark.driver.maxResultSize', '0'),
+        ('spark.executor.cores', '5'),
+        ('spark.local.dir', '/scratch/descourt/spark')
+    ])
+    # create the session
+    spark = SparkSession.builder.config(conf=conf).getOrCreate()
+    # create the context
+    sc = spark.sparkContext
 
     save_path = "/scratch/descourt/processed_data_050923"
     os.makedirs(save_path, exist_ok=True)
