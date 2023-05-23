@@ -347,7 +347,7 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print('Load data')
     if dfs is None:
-        dfs = spark.read.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023.parquet")
+        dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
     if df_topics_sp is None:
         df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic/topics-enwiki-20230320-parsed.parquet')
 
@@ -384,7 +384,7 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
 
     print("Write to file")
-    dfs.write.parquet("/scratch/descourt/processed_data_050923/pageviews_en_2015-2023_matched.parquet")
+    dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
 
     print("Done")
 
@@ -418,4 +418,4 @@ def download_mappings():
 
 
 if __name__ == '__main__':
-    automated_main()
+    match_missing_ids()
