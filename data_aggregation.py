@@ -1,3 +1,4 @@
+import argparse
 import os
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
@@ -14,8 +15,8 @@ from functools import reduce
 import requests
 
 conf = pyspark.SparkConf().setMaster("local[3]").setAll([
-    ('spark.driver.memory', '50G'),
-    ('spark.executor.memory', '50G'),
+    ('spark.driver.memory', '30G'),
+    ('spark.executor.memory', '30G'),
     ('spark.driver.maxResultSize', '0'),
     ('spark.executor.cores', '3'),
     ('spark.local.dir', '/scratch/descourt/spark')
@@ -366,6 +367,15 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     We then query Wikipedia's API to match the redirect page id with the target page id
     """
 
+    parser = argparse.ArgumentParser(
+        description='Wikipedia missing pageids downloading')
+    parser.add_argument('--year',
+                        type=str,
+                        default='2020',
+                        help='Year to download')
+    args = parser.parse_args()
+    year = args.year
+
     print('Load data')
     if dfs is None:
         dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
@@ -373,7 +383,7 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
         df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic/topics-enwiki-20230320-parsed.parquet')
 
     print('Merge with topics and retrieve which page_ids do not match')
-    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
+    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull() & dfs.date.contains(year)) \
         .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
         .where(col('topics_unique').isNull()).select('page_id').distinct()
     unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
@@ -381,58 +391,34 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     print('Match the unmatched ids with their target page id')
     mappings = get_target_id(unmatched_ids)
     if save_interm:
-        with open("/scratch/descourt/topics/topic/mappings_ids_corrected.pickle", "wb") as handle:
+        with open(f"/scratch/descourt/topics/topic/mappings_ids_corrected_{year}.pickle", "wb") as handle:
             pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
     if save_interm:
-        df_matching.write.parquet("/scratch/descourt/topics/topic/df_missing_redirects.parquet")
-    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
-    # The left unmatched page_ids correspond in fact already to target pages,
-    # so their own id could not be matched and we replace it with original id
-    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
+        df_matching.write.parquet(f"/scratch/descourt/topics/topic/df_missing_redirects_{year}.parquet")
 
-    print("Recompute the tot view counts")
-    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
-    dfs = dfs.withColumn('page', first('page').over(w))
-    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
-        sum('tot_count_views').alias('tot_count_views'))
-
-    print("Recompute ordinal and fractional ranks")
-    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    dfs = dfs.withColumn("rank", row_number().over(window))
-    df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
-
-    print("Write to file")
-    dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
+    # dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
+    # # The left unmatched page_ids correspond in fact already to target pages,
+    # # so their own id could not be matched and we replace it with original id
+    # dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
+    #
+    # print("Recompute the tot view counts")
+    # w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
+    # dfs = dfs.withColumn('page', first('page').over(w))
+    # dfs = dfs.groupBy('date', 'page_id', 'page').agg(
+    #     sum('tot_count_views').alias('tot_count_views'))
+    #
+    # print("Recompute ordinal and fractional ranks")
+    # window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    # dfs = dfs.withColumn("rank", row_number().over(window))
+    # df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    # dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
+    #
+    # print("Write to file")
+    # dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
 
     print("Done")
-
-def corrected_filtering():
-
-    df_filt = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_agg_en_2015-2023.parquet")
-    df_filt = df_filt.filter(~df_filt.page.contains('User:') & \
-                             ~df_filt.page.contains('Wikipedia:') & \
-                             ~df_filt.page.contains('File:') & \
-                             ~df_filt.page.contains('MediaWiki:') & \
-                             ~df_filt.page.contains('Template:') & \
-                             ~df_filt.page.contains('Help:') & \
-                             ~df_filt.page.contains('Category:') & \
-                             ~df_filt.page.contains('Portal:') & \
-                             ~df_filt.page.contains('Draft:') & \
-                             ~df_filt.page.contains('TimedText:') & \
-                             ~df_filt.page.contains('Module:') & \
-                             ~df_filt.page.contains('Special:') & \
-                             ~df_filt.page.contains('Media:') & \
-                             ~df_filt.page.contains('Talk:') & \
-                             ~df_filt.page.contains('talk:'))
-    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    df_agg = df_filt.withColumn("rank", row_number().over(window))
-
-    df_fract = df_agg.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    dfs = df_agg.join(df_fract, on=['date', 'tot_count_views'])
-    dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_corr_en_2015-2023.parquet")
 
 
 
