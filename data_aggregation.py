@@ -13,11 +13,11 @@ from tqdm import tqdm
 from functools import reduce
 import requests
 
-conf = pyspark.SparkConf().setMaster("local[3]").setAll([
-    ('spark.driver.memory', '50G'),
-    ('spark.executor.memory', '50G'),
+conf = pyspark.SparkConf().setMaster("local[5]").setAll([
+    ('spark.driver.memory', '100G'),
+    ('spark.executor.memory', '100G'),
     ('spark.driver.maxResultSize', '0'),
-    ('spark.executor.cores', '3'),
+    ('spark.executor.cores', '5'),
     ('spark.local.dir', '/scratch/descourt/spark')
 ])
 # create the session
@@ -181,22 +181,43 @@ def filter_data(df, project, dates):
     df_filt = df.where(f"project = '{project}'") \
         .filter(df.date.isin(dates)) \
         .select(col('page').alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type')
-    df_filt = df_filt.filter(~df_filt.page.contains('user:') & \
-                             ~df_filt.page.contains('wikipedia:') & \
-                             ~df_filt.page.contains('file:') & \
-                             ~df_filt.page.contains('mediawiki:') & \
-                             ~df_filt.page.contains('template:') & \
-                             ~df_filt.page.contains('help:') & \
-                             ~df_filt.page.contains('category:') & \
-                             ~df_filt.page.contains('portal:') & \
-                             ~df_filt.page.contains('draft:') & \
-                             ~df_filt.page.contains('timedtext:') & \
-                             ~df_filt.page.contains('module:') & \
-                             ~df_filt.page.contains('special:') & \
-                             ~df_filt.page.contains('media:') & \
-                             ~df_filt.page.contains('talk:') & \
-                             ~df_filt.page.isin(specials_to_filt) \
-                             & (df_filt.counts >= 1))
+    if 'en' in project:
+        df_filt = df_filt.filter(~df_filt.page.contains('User:') & \
+                                 ~df_filt.page.contains('Wikipedia:') & \
+                                 ~df_filt.page.contains('File:') & \
+                                 ~df_filt.page.contains('MediaWiki:') & \
+                                 ~df_filt.page.contains('Template:') & \
+                                 ~df_filt.page.contains('Help:') & \
+                                 ~df_filt.page.contains('Category:') & \
+                                 ~df_filt.page.contains('Portal:') & \
+                                 ~df_filt.page.contains('Draft:') & \
+                                 ~df_filt.page.contains('TimedText:') & \
+                                 ~df_filt.page.contains('Module:') & \
+                                 ~df_filt.page.contains('Special:') & \
+                                 ~df_filt.page.contains('Media:') & \
+                                 ~df_filt.page.contains('Talk:') & \
+                                 ~df_filt.page.contains('talk:') & \
+                                 ~df_filt.page.isin(specials_to_filt) \
+                                 & (df_filt.counts >= 1))
+    elif 'fr' in project:
+        df_filt = df_filt.filter(~df_filt.page.contains('Utilisateur:') & \
+                                 ~df_filt.page.contains('Wikipédia:') & \
+                                 ~df_filt.page.contains('Fichier:') & \
+                                 ~df_filt.page.contains('MediaWiki:') & \
+                                 ~df_filt.page.contains('Modèle:') & \
+                                 ~df_filt.page.contains('Aide:') & \
+                                 ~df_filt.page.contains('Catégorie:') & \
+                                 ~df_filt.page.contains('Portail:') & \
+                                 ~df_filt.page.contains('Projet:') & \
+                                 ~df_filt.page.contains('TimedText:') & \
+                                 ~df_filt.page.contains('Référence:') & \
+                                 ~df_filt.page.contains('special:') & \
+                                 ~df_filt.page.contains('media:') & \
+                                 ~df_filt.page.contains('media:') &
+                                 ~df_filt.page.contains('media:') & \
+                                 ~df_filt.page.contains('Discussion') & \
+                                 ~df_filt.page.isin(specials_to_filt) \
+                                 & (df_filt.counts >= 1))
 
     return df_filt
 
@@ -210,7 +231,7 @@ def match_ids(df, latest_date, project):
     [y, m] = latest_date.split('-')
 
     # Select all available pages and their page ids (raw) for project of interest
-    df_latest = setup_data([y], [m])  # Download all data
+    df_latest = setup_data([y], [m], path=f'/scratch/descourt/pageviews_{project.split(".")[0]}')  # Download all data
 
     # Select columns of interest and filter project
     df_latest = df_latest.where((df_latest.project == project) & (df_latest.page_id != 'null')) \
@@ -303,7 +324,7 @@ def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
 def automated_main():
     save_path = "/scratch/descourt/processed_data_052223_fr"
     os.makedirs(save_path, exist_ok=True)
-    save_file = "pageviews_agg_fr_2015-2023.parquet"
+    save_file = "pageviews_fr_2015-2023.parquet"
     project = 'fr.wikipedia'
 
     # Process data
@@ -388,6 +409,33 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print("Done")
 
+def corrected_filtering():
+
+    df_filt = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_agg_en_2015-2023.parquet")
+    df_filt = df_filt.filter(~df_filt.page.contains('User:') & \
+                             ~df_filt.page.contains('Wikipedia:') & \
+                             ~df_filt.page.contains('File:') & \
+                             ~df_filt.page.contains('MediaWiki:') & \
+                             ~df_filt.page.contains('Template:') & \
+                             ~df_filt.page.contains('Help:') & \
+                             ~df_filt.page.contains('Category:') & \
+                             ~df_filt.page.contains('Portal:') & \
+                             ~df_filt.page.contains('Draft:') & \
+                             ~df_filt.page.contains('TimedText:') & \
+                             ~df_filt.page.contains('Module:') & \
+                             ~df_filt.page.contains('Special:') & \
+                             ~df_filt.page.contains('Media:') & \
+                             ~df_filt.page.contains('Talk:') & \
+                             ~df_filt.page.contains('talk:'))
+    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    df_agg = df_filt.withColumn("rank", row_number().over(window))
+
+    df_fract = df_agg.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs = df_agg.join(df_fract, on=['date', 'tot_count_views'])
+    dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_corr_en_2015-2023.parquet")
+
+
+
 
 if __name__ == '__main__':
-    match_missing_ids()
+    corrected_filtering()
