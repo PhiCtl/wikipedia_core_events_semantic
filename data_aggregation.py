@@ -209,13 +209,13 @@ def filter_data(df, project, dates):
                                  ~df_filt.page.contains('Catégorie:') & \
                                  ~df_filt.page.contains('Portail:') & \
                                  ~df_filt.page.contains('Projet:') & \
-                                 ~df_filt.page.contains('TimedText:') & \
+                                 ~df_filt.page.contains('TimedText') & \
                                  ~df_filt.page.contains('Référence:') & \
-                                 ~df_filt.page.contains('special:') & \
-                                 ~df_filt.page.contains('media:') & \
-                                 ~df_filt.page.contains('media:') &
-                                 ~df_filt.page.contains('media:') & \
+                                 ~df_filt.page.contains('Module:') & \
+                                 ~df_filt.page.contains('Gadget:') & \
+                                 ~df_filt.page.contains('Sujet:') & \
                                  ~df_filt.page.contains('Discussion') & \
+                                 ~df_filt.page.contains('Spécial') & \
                                  ~df_filt.page.isin(specials_to_filt) \
                                  & (df_filt.counts >= 1))
 
@@ -438,4 +438,4 @@ def corrected_filtering():
 
 
 if __name__ == '__main__':
-    corrected_filtering()
+    automated_main()
