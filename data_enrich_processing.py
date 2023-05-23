@@ -85,6 +85,25 @@ def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality
     df_quality = df_quality.join(df_matching, 'revision_id')
     df_quality.write.parquet(path_scores.split('.')[0] + '.parquet')
 
+def parse_Wikirank_scores(path_in='/scratch/descourt/topics/quality/wikirank_scores_201807.tsv.zip'):
+
+    path_out = path_in.split('.')[0] + '_en.parquet'
+    for chunk in pd.read_csv(path_in, sep='\t', chunksize=10**6):
+
+        if chunk.loc[chunk['language'] == 'en'].shape[0] >= 1:
+
+            df = chunk.loc[chunk['language'] == 'en']
+            df['revision_id'] = df['revision_id'].astype(str)
+            df['language'] = df['language'].astype(str)
+            df['page_id'] = df['page_id'].astype(str)
+            df['page_name'] = df['page_name'].astype(str)
+            df['wikirank_quality'] = df['wikirank_quality'].astype(float)
+
+            if not os.path.isfile(path_out):
+                df.to_parquet(path_out, engine='fastparquet', index=False)
+            else:
+                df.to_parquet(path_out, engine='fastparquet', index=False, append=True)
+
 
 if __name__ == '__main__':
     parse_ORES_scores()
