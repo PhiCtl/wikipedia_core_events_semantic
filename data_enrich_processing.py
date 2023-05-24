@@ -54,7 +54,7 @@ def parse_embeddings(path_in="/scratch/descourt/topics/embeddings/article-descri
     assembler = VectorAssembler(inputCols=[c for c in df_embeds.columns if c != 'page_id'],
                                 outputCol='embed')
     df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
-    df_embeds_vec.write.parquet(path_out.split('.') + "-sp.parquet")
+    df_embeds_vec.write.parquet(path_out.split('.')[0] + "-sp.parquet")
 
 def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality_en_March21.json.gz",
                       save_interm=True):
