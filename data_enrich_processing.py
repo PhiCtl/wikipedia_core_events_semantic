@@ -13,18 +13,6 @@ from data_aggregation import get_target_id
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
-conf = pyspark.SparkConf().setMaster("local[*]").setAll([
-                                   ('spark.driver.memory','70G'),
-                                   ('spark.executor.memory', '70G'),
-                                   ('spark.driver.maxResultSize', '0'),
-                                    ('spark.executor.cores', '5'),
-                                    ('spark.local.dir', '/scratch/descourt/spark')
-                                  ])
-# create the session
-spark = SparkSession.builder.config(conf=conf).getOrCreate()
-# create the context
-sc = spark.sparkContext
-
 
 def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip",
                  path_out='/home/descourt/topic_embeddings/topics-enwiki-20230320-parsed.parquet'):
@@ -43,7 +31,7 @@ def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip"
     df_topics = df_topics.explode('topics')
     df_topics.to_parquet(path_out, engine='fastparquet')
 
-def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embeddings_frwiki-20210401-fasttext.pickle",
+def parse_embeddings(path_in="/scratch/descourt/topics/topic_fr/article-description-embeddings_frwiki-20210401-fasttext.pickle",
                      path_out='/scratch/descourt/topics/topic_fr/embeddings-fr-20210401.parquet',
                      debug=True):
 
@@ -107,5 +95,17 @@ def parse_Wikirank_scores(path_in='/scratch/descourt/topics/quality/wikirank_sco
 
 
 if __name__ == '__main__':
+    conf = pyspark.SparkConf().setMaster("local[*]").setAll([
+        ('spark.driver.memory', '70G'),
+        ('spark.executor.memory', '70G'),
+        ('spark.driver.maxResultSize', '0'),
+        ('spark.executor.cores', '5'),
+        ('spark.local.dir', '/scratch/descourt/spark')
+    ])
+    # create the session
+    spark = SparkSession.builder.config(conf=conf).getOrCreate()
+    # create the context
+    sc = spark.sparkContext
+
     parse_embeddings()
     parse_Wikirank_scores(project='fr')
