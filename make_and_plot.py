@@ -344,7 +344,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode',
                         type=str,
                         choices=['date', 'set_size', 'alpha'],
-                        default='dates')
+                        default='date')
     parser.add_argument('--alpha',
                         type=float,
                         default=0.3)
