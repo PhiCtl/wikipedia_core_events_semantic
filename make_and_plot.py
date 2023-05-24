@@ -213,7 +213,7 @@ def prepare_RTD_ranks(df, d1, d2, n=int(1e8)):
            N1, N2, N
 
 
-def prepare_heat_map(df, prev_date, next_date, n,,debug=False):
+def prepare_heat_map(df, prev_date, next_date, n,debug=False):
 
     """
     Prepare Rank Turbulence divergence heatmap plot
