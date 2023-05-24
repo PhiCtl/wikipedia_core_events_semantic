@@ -14,11 +14,11 @@ from tqdm import tqdm
 from functools import reduce
 import requests
 
-conf = pyspark.SparkConf().setMaster("local[3]").setAll([
-    ('spark.driver.memory', '30G'),
-    ('spark.executor.memory', '30G'),
+conf = pyspark.SparkConf().setMaster("local[5]").setAll([
+    ('spark.driver.memory', '70G'),
+    ('spark.executor.memory', '70G'),
     ('spark.driver.maxResultSize', '0'),
-    ('spark.executor.cores', '3'),
+    ('spark.executor.cores', '5'),
     ('spark.local.dir', '/scratch/descourt/spark')
 ])
 # create the session
