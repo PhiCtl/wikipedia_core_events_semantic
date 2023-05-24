@@ -43,8 +43,8 @@ def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip"
     df_topics = df_topics.explode('topics')
     df_topics.to_parquet(path_out, engine='fastparquet')
 
-def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embeddings_enwiki-20210401-fasttext.pickle",
-                     path_out='/scratch/descourt/topics/embeddings-20210401-sp.parquet',
+def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embeddings_frwiki-20210401-fasttext.pickle",
+                     path_out='/scratch/descourt/topics/topic_fr/embeddings-fr-20210401.parquet',
                      debug=True):
 
     # Load embeddings for < 2021-04
@@ -59,14 +59,14 @@ def parse_embeddings(path_in="/scratch/descourt/topics/article-description-embed
     df_embeds = pd.DataFrame(embeds)
     df_embeds['page_id'] = page_ids
     df_embeds.rename({i: str(i) for i in df_embeds.columns}, inplace=True, axis=1)
-    df_embeds.to_parquet('/home/descourt/topic_embeddings/embeddings-20210401.parquet', engine='fastparquet')
+    df_embeds.to_parquet(path_out, engine='fastparquet')
 
     if debug: print("Process embeddings pyspark")
-    df_embeds = spark.read.parquet('/scratch/descourt/topics/embeddings-20210401.parquet')
+    df_embeds = spark.read.parquet(path_out)
     assembler = VectorAssembler(inputCols=[c for c in df_embeds.columns if c != 'page_id'],
                                 outputCol='embed')
     df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
-    df_embeds_vec.write.parquet(path_out)
+    df_embeds_vec.write.parquet(path_out.split('.') + "-sp.parquet")
 
 def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality_en_March21.json.gz",
                       save_interm=True):
@@ -85,14 +85,15 @@ def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality
     df_quality = df_quality.join(df_matching, 'revision_id')
     df_quality.write.parquet(path_scores.split('.')[0] + '.parquet')
 
-def parse_Wikirank_scores(path_in='/scratch/descourt/topics/quality/wikirank_scores_201807.tsv.zip'):
+def parse_Wikirank_scores(path_in='/scratch/descourt/topics/quality/wikirank_scores_201807.tsv.zip',
+                          project='en'):
 
-    path_out = path_in.split('.')[0] + '_en.parquet'
+    path_out = path_in.split('.')[0] + f'_{project}.parquet'
     for chunk in pd.read_csv(path_in, sep='\t', chunksize=10**6):
 
-        if chunk.loc[chunk['language'] == 'en'].shape[0] >= 1:
+        if chunk.loc[chunk['language'] == project].shape[0] >= 1:
 
-            df = chunk.loc[chunk['language'] == 'en']
+            df = chunk.loc[chunk['language'] == project]
             df['revision_id'] = df['revision_id'].astype(str)
             df['language'] = df['language'].astype(str)
             df['page_id'] = df['page_id'].astype(str)
@@ -106,4 +107,5 @@ def parse_Wikirank_scores(path_in='/scratch/descourt/topics/quality/wikirank_sco
 
 
 if __name__ == '__main__':
-    parse_ORES_scores()
+    parse_embeddings()
+    parse_Wikirank_scores(project='fr')
