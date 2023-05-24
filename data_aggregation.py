@@ -63,7 +63,7 @@ def yield_mapping(pages, prop='redirects', subprop='pageid'):
     return mapping
 
 
-def query_target_id(request):
+def query_target_id(request, project):
     """
     Query Wikipedia API with specified parameters.
     Adapted From https://github.com/pgilders/WikiNewsNetwork-01-WikiNewsTopics
@@ -71,6 +71,8 @@ def query_target_id(request):
     ----------
     request : dict
         API call parameters.
+    project : str
+        project to query from
     Raises
     ------
     ValueError
@@ -89,7 +91,7 @@ def query_target_id(request):
         req.update(lastContinue)
         # Call API
         result = requests.get(
-            'https://en.wikipedia.org/w/api.php', params=req).json()
+            f'https://{project}.wikipedia.org/w/api.php', params=req).json()
         if 'error' in result:
             print('ERROR')
             raise ValueError(result['error'])
@@ -102,7 +104,7 @@ def query_target_id(request):
         lastContinue = result['continue']
 
 
-def get_target_id(ids, request_type='redirects', request_id='pageids'):
+def get_target_id(ids, request_type='redirects', request_id='pageids', project='en'):
     """
     Map ids to their target page id
     :param ids: list of ids to match to target page id
@@ -118,7 +120,7 @@ def get_target_id(ids, request_type='redirects', request_id='pageids'):
         if request_type == 'redirects':
             params[request_type] = 'True'
             params['rdlimit'] = 'max'
-        for res in query_target_id(params):
+        for res in query_target_id(params, project=project):
             m = yield_mapping(res, prop=request_type, subprop=request_id[:-1])
             mapping.update({k : v for k, v in m.items() if k in chunk})
 
@@ -160,12 +162,7 @@ def specials(project):
     """
     if project == 'en.wikipedia':
         return ['Main_Page', '-', 'Search']
-    # TODO refine for french edition
     elif project == 'fr.wikipedia':
-        return ['-']
-    elif project == 'es.wikipedia':
-        return ['-']
-    elif project == 'de.wikipedia':
         return ['-']
 
 
@@ -378,45 +375,45 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print('Load data')
     if dfs is None:
-        dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
+        dfs = spark.read.parquet("/scratch/descourt/processed_data_052223_fr/pageviews_fr_2015-2023.parquet")
     if df_topics_sp is None:
-        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic/topics-enwiki-20230320-parsed.parquet')
+        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/embeddings/embeddings-fr-20210401-sp.parquet')
 
     print('Merge with topics and retrieve which page_ids do not match')
-    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull() & dfs.date.contains(year)) \
+    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
         .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
         .where(col('topics_unique').isNull()).select('page_id').distinct()
     unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
 
     print('Match the unmatched ids with their target page id')
-    mappings = get_target_id(unmatched_ids)
+    mappings = get_target_id(unmatched_ids, project='fr')
     if save_interm:
-        with open(f"/scratch/descourt/topics/topic/mappings_ids_corrected_{year}.pickle", "wb") as handle:
+        with open(f"/scratch/descourt/topics/topic_fr/mappings_ids_corrected.pickle", "wb") as handle:
             pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
     if save_interm:
-        df_matching.write.parquet(f"/scratch/descourt/topics/topic/df_missing_redirects_{year}.parquet")
+        df_matching.write.parquet(f"/scratch/descourt/topics/topic_fr/df_missing_redirects.parquet")
 
-    # dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
-    # # The left unmatched page_ids correspond in fact already to target pages,
-    # # so their own id could not be matched and we replace it with original id
-    # dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
-    #
-    # print("Recompute the tot view counts")
-    # w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
-    # dfs = dfs.withColumn('page', first('page').over(w))
-    # dfs = dfs.groupBy('date', 'page_id', 'page').agg(
-    #     sum('tot_count_views').alias('tot_count_views'))
-    #
-    # print("Recompute ordinal and fractional ranks")
-    # window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    # dfs = dfs.withColumn("rank", row_number().over(window))
-    # df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    # dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
-    #
-    # print("Write to file")
-    # dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
+    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
+    # The left unmatched page_ids correspond in fact already to target pages,
+    # so their own id could not be matched and we replace it with original id
+    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
+
+    print("Recompute the tot view counts")
+    w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
+    dfs = dfs.withColumn('page', first('page').over(w))
+    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
+        sum('tot_count_views').alias('tot_count_views'))
+
+    print("Recompute ordinal and fractional ranks")
+    window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
+    dfs = dfs.withColumn("rank", row_number().over(window))
+    df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
+
+    print("Write to file")
+    dfs.write.parquet("/scratch/descourt/processed_data_052223_fr/pageviews_fr_2015-2023_matched.parquet")
 
     print("Done")
 
