@@ -447,9 +447,9 @@ if __name__ == '__main__':
             df_plot_divs.append(df_div_pd)
             df_stats.append(stats)
 
-        pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_setsize.csv.gzip'), compression='gzip')
-        pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_setsize.csv.gzip'), compression='gzip')
-        pd.concat(df_stats).to_csv(os.path.join(plot_dir, 'stats_setsize.csv'))
+        pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_alphas.csv.gzip'), compression='gzip')
+        pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_alphas.csv.gzip'), compression='gzip')
+        pd.concat(df_stats).to_csv(os.path.join(plot_dir, 'stats_alphas.csv'))
 
 
 
