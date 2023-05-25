@@ -80,7 +80,9 @@ def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
                                            pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), lit(1 / (alpha + 1))) * (
                                                        alpha + 1) / (alpha * N))
 
-    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id', 'page', col(f'{d1}_nn').alias('rank_1'), col(f'{d2}_nn').alias('rank_2'))
+    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id', 'page',
+                                                           col(f'{d1}_nn').alias('rank_1'), col(f'{d2}_nn').alias('rank_2'),
+                                                           col(d1).alias('prev_rank_1'), col(d2).alias('prev_rank_2'))
 
 
 def RTD_0_sp(rks, d1, d2, N1, N2):
