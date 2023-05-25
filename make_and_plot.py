@@ -4,6 +4,8 @@ import argparse
 import pandas as pd
 import numpy as np
 
+from random import shuffle
+
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import plotly.graph_objs as go
@@ -19,23 +21,31 @@ from pyspark import SparkContext
 from rank_turbulence_divergence import rank_turbulence_divergence_sp
 
 
-def set_up_mapping(topics=None):
+def set_up_mapping(topics=None, grouped=True):
 
     if topics is None:
         with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
             lines = f.read()
         topics = lines.replace('\n', '').replace("'", '').split(',')
-
-    viridis = mpl.colormaps['viridis'].resampled(23)  # geography
-    plasma = mpl.colormaps['plasma'].resampled(22)  # culture
-    spring = mpl.colormaps['spring'].resampled(7) # history
-    cool = mpl.colormaps['cool'].resampled(12) # stem
-
     color_mapping = {}
-    color_mapping.update({t : c for t, c in zip([t for t in topics if 'geography' in t], viridis.colors)})
-    color_mapping.update({t: c for t, c in zip([t for t in topics if 'culture' in t], plasma.colors)})
-    color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], spring(np.arange(0,spring.N)))})
-    color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], cool(np.arange(0,cool.N)))})
+    if grouped:
+        viridis = mpl.colormaps['viridis'].resampled(23)  # geography
+        plasma = mpl.colormaps['plasma'].resampled(22)  # culture
+        spring = mpl.colormaps['spring'].resampled(7) # history
+        cool = mpl.colormaps['cool'].resampled(12) # stem
+
+        color_mapping.update({t : c for t, c in zip([t for t in topics if 'geography' in t], viridis.colors)})
+        color_mapping.update({t: c for t, c in zip([t for t in topics if 'culture' in t], plasma.colors)})
+        color_mapping.update({t: c for t, c in zip([t for t in topics if 'history' in t], spring(np.arange(0,spring.N)))})
+        color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], cool(np.arange(0,cool.N)))})
+
+    else:
+        with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
+            lines = f.read()
+        colors = lines.replace('\n', '').replace("'", '').split(',')
+        shuffle(colors)
+
+        color_mapping.update({t : c for t, c in zip(topics, colors)})
 
     return color_mapping
 
@@ -432,7 +442,9 @@ if __name__ == '__main__':
         df_plot_heatmap.append(df_heatmap)
 
         for alpha in tqdm(alphas):
-            df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha, p, n, int(10**8), N1, N2)
+            print(alpha)
+            df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha=alpha, prev_date=p,
+                                                         next_date=n, n=int(10**8), N1=N1, N2=N2)
             stats = prepare_stats(df_ranked, df_divs, dfs, p, n, alpha, int(10**8))
 
             df_plot_divs.append(df_div_pd)
