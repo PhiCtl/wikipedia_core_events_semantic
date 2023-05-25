@@ -434,7 +434,7 @@ if __name__ == '__main__':
 
     else:
         # Alpha
-        alphas = [int(1e-5), int(1e-4), int(1e-2), int(1e-1), 0.3, 1, 5, 10, 15]
+        alphas = [int(1e-4), int(1e-3), int(1e-2), int(1e-1), 0.3, 1, 5, 10, 15]
         p = '2020-12'
         n = '2021-01'
 
@@ -442,7 +442,6 @@ if __name__ == '__main__':
         df_plot_heatmap.append(df_heatmap)
 
         for alpha in tqdm(alphas):
-            print(alpha)
             df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha=alpha, prev_date=p,
                                                          next_date=n, n=int(10**8), N1=N1, N2=N2)
             stats = prepare_stats(df_ranked, df_divs, dfs, p, n, alpha, int(10**8))
