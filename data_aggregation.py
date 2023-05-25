@@ -14,19 +14,6 @@ from tqdm import tqdm
 from functools import reduce
 import requests
 
-conf = pyspark.SparkConf().setMaster("local[5]").setAll([
-    ('spark.driver.memory', '70G'),
-    ('spark.executor.memory', '70G'),
-    ('spark.driver.maxResultSize', '0'),
-    ('spark.executor.cores', '5'),
-    ('spark.local.dir', '/scratch/descourt/spark')
-])
-# create the session
-spark = SparkSession.builder.config(conf=conf).getOrCreate()
-# create the context
-sc = spark.sparkContext
-sc.setLogLevel('ERROR')
-
 
 def chunk_split(list_of_ids, chunk_len=49):
     """
@@ -421,4 +408,16 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
 
 if __name__ == '__main__':
+    conf = pyspark.SparkConf().setMaster("local[5]").setAll([
+        ('spark.driver.memory', '70G'),
+        ('spark.executor.memory', '70G'),
+        ('spark.driver.maxResultSize', '0'),
+        ('spark.executor.cores', '5'),
+        ('spark.local.dir', '/scratch/descourt/spark')
+    ])
+    # create the session
+    spark = SparkSession.builder.config(conf=conf).getOrCreate()
+    # create the context
+    sc = spark.sparkContext
+    sc.setLogLevel('ERROR')
     match_missing_ids()
