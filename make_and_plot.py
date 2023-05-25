@@ -4,8 +4,6 @@ import argparse
 import pandas as pd
 import numpy as np
 
-from random import shuffle
-
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import plotly.graph_objs as go
@@ -43,7 +41,7 @@ def set_up_mapping(topics=None, grouped=True):
         with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
             lines = f.read()
         colors = lines.replace('\n', '').replace("'", '').split(',')
-        shuffle(colors)
+        np.random.shuffle(colors)
 
         color_mapping.update({t : c for t, c in zip(topics, colors)})
 
