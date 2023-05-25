@@ -414,7 +414,7 @@ if __name__ == '__main__':
 
     elif args.mode == 'set_size':
 
-        sizes = [np.power(10, i) for i in [4,5,6,7,8]]
+        sizes = [int(np.power(10, i)) for i in [4,5,6,7,8]]
         p = '2020-12'
         n = '2021-01'
 
@@ -434,7 +434,7 @@ if __name__ == '__main__':
 
     else:
         # Alpha
-        alphas = [int(1e-4), int(1e-3), int(1e-2), int(1e-1), 0.3, 1, 5, 10, 15]
+        alphas = [1e-4, 1e-3, 1e-2, 1e-1, 0.3, 1, 5, 10, 15]
         p = '2020-12'
         n = '2021-01'
 
