@@ -302,7 +302,7 @@ def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000
     df_plot['month'] = [prev_date if s < 0 else next_date for s in df_plot['div_sign'].values]
     df_plot['date'] = f"{prev_date} / {next_date}"
 
-    return df_plot
+    return df_plot, df_divs
 
 def prepare_stats(df_rank, df_div, dfs, prev_date, next_date, alpha, n):
 
@@ -391,8 +391,8 @@ if __name__ == '__main__':
         for p, n in tqdm(zip(prev_d, next_d)):
 
             df_ranked, df_heatmap, N1, N2, N = prepare_heat_map(dfs, p, n, int(10**8))
-            df_div_pd = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**8), N1, N2)
-            stats = prepare_stats(df_ranked, df_div_pd, dfs, p, n, args.alpha, int(10**8))
+            df_div_pd, df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**8), N1, N2)
+            stats = prepare_stats(df_ranked, df_divs, dfs, p, n, args.alpha, int(10**8))
 
             df_plot_heatmap.append(df_heatmap)
             df_plot_divs.append(df_div_pd)
@@ -411,8 +411,8 @@ if __name__ == '__main__':
         for size in tqdm(sizes):
 
             df_ranked, df_heatmap, N1, N2, N = prepare_heat_map(dfs, p, n, size)
-            df_div_pd = prepare_divergence_plot(df_ranked, args.alpha, p, n, size, N1, N2)
-            stats = prepare_stats(df_ranked, df_div_pd, dfs, p, n, args.alpha, size)
+            df_div_pd, df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, size, N1, N2)
+            stats = prepare_stats(df_ranked, df_divs, dfs, p, n, args.alpha, size)
 
             df_plot_heatmap.append(df_heatmap)
             df_plot_divs.append(df_div_pd)
@@ -432,8 +432,8 @@ if __name__ == '__main__':
         df_plot_heatmap.append(df_heatmap)
 
         for alpha in tqdm(alphas):
-            df_div_pd = prepare_divergence_plot(df_ranked, alpha, p, n, int(10**8), N1, N2)
-            stats = prepare_stats(df_ranked, df_div_pd, dfs, p, n, alpha, int(10**8))
+            df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha, p, n, int(10**8), N1, N2)
+            stats = prepare_stats(df_ranked, df_divs, dfs, p, n, alpha, int(10**8))
 
             df_plot_divs.append(df_div_pd)
             df_stats.append(stats)
