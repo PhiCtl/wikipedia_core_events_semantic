@@ -268,7 +268,7 @@ def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000
 
     if debug : print("Compute divergence")
     df_divs = rank_turbulence_divergence_sp(
-        df.select('page_id', col('rank_1').alias(f'{p}_nn'), col('rank_2').alias(f'{n}_nn'), col('prev_rank_1').alias(p), col('prev_rank_2').alias(n), 'page'),
+        df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
         prev_date,
         next_date,
         N1, N2,
