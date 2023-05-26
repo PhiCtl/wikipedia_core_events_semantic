@@ -273,12 +273,11 @@ def prepare_heat_map(df, prev_date, next_date, n, debug=False):
     return df_ranked, df_plot, N1, N2, N
 
 
-def prepare_topic_heatmap(df, df_topics_sp, prev_date, next_date, n):
+def prepare_topic_heatmap(df, df_topics_sp, prev_date, next_date, n, res=10):
     df_ranked, _, _, _ = prepare_RTD_ranks(df.where(df.date.isin([prev_date, next_date])),
                                            prev_date,
                                            next_date,
-                                           n=n,
-                                           res=10)
+                                           n=n)
 
     df_ranked_top = df_ranked.withColumn('log_rank_1', round(log10(col('rank_1')) * res) / res) \
         .withColumn('log_rank_2', round(log10(col('rank_2')) * res) / res).cache()  # Keep first digits after coma
