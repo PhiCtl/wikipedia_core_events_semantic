@@ -413,8 +413,8 @@ if __name__ == '__main__':
     elif args.mode == 'set_size':
 
         sizes = [int(np.power(10, i)) for i in [4,5,6,7,8]]
-        p = '2020-12'
-        n = '2021-01'
+        p = '2015-07'
+        n = '2023-03'
 
         for size in tqdm(sizes):
 
