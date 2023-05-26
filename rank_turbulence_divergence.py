@@ -94,7 +94,7 @@ def RTD_0_sp(rks, d1, d2, N1, N2):
     :param N1: number of elements at d1
     :param N2: number of elements at d2
     """
-    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id')
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id', 'page')
     tmp_1 = computations.where(~col(d1).isNull()).withColumn('abs_ln_r1_Ns', abs(log(col(d1) / (N1 + 1 / 2 * N2))))
     tmp_2 = computations.where(~col(d2).isNull()).withColumn('abs_ln_r2_Ns', abs(log(col(d2) / (N2 + 1 / 2 * N1))))
 
@@ -104,7 +104,10 @@ def RTD_0_sp(rks, d1, d2, N1, N2):
     computations = computations.withColumn('abs_ln_r1_r2', abs(log(col(d1 + '_nn') / col(d2 + '_nn'))))
     computations = computations.withColumn(f'div_{d2}', col('abs_ln_r1_r2') / N)
 
-    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id')
+    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id', 'page',
+                                                           col(f'{d1}_nn').alias('rank_1'),
+                                                           col(f'{d2}_nn').alias('rank_2'),
+                                                           col(d1).alias('prev_rank_1'), col(d2).alias('prev_rank_2'))
 
 
 def RTD_inf_sp(rks, d1, d2):
@@ -114,7 +117,7 @@ def RTD_inf_sp(rks, d1, d2):
     :param d1: string date 1 in format YYYY-MM
     :param d2: string date 2 in format YYYY-MM
     """
-    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id')
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id' ,'page')
     tmp_1 = computations.where(~col(d1).isNull()).withColumn('1_r1', 1 / col(d1))
     tmp_2 = computations.where(~col(d2).isNull()).withColumn('1_r2', 1 / col(d2))
 
@@ -124,7 +127,10 @@ def RTD_inf_sp(rks, d1, d2):
         greatest(1 / col(d1 + '_nn'), 1 / col(d2 + '_nn'))))
     computations = computations.withColumn(f'div_{d2}', col('max_r1_r2') / N)
 
-    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id')
+    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id', 'page',
+                                                           col(f'{d1}_nn').alias('rank_1'),
+                                                           col(f'{d2}_nn').alias('rank_2'),
+                                                           col(d1).alias('prev_rank_1'), col(d2).alias('prev_rank_2'))
 
 
 def augment_div(df, rg_rk, dates, df_ranks):
