@@ -420,6 +420,7 @@ if __name__ == '__main__':
     sc.setLogLevel('ERROR')
 
     dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
+    df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
     plot_dir = "/scratch/descourt/plots/files/"
     os.makedirs(plot_dir, exist_ok=True)
 
@@ -479,7 +480,7 @@ if __name__ == '__main__':
 
         for p, n in tqdm(zip(prev_d, next_d)):
 
-            df_ranked, df_heatmap, N1, N2, N = prepare_heat_map(dfs, p, n, int(10**8))
+            df_ranked, df_heatmap, N1, N2, N = prepare_topic_heatmap(df_topics_sp, dfs, p, n, int(10**8))
 
             df_plot_heatmap.append(df_heatmap)
 
