@@ -285,8 +285,7 @@ def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000
         df_divs = RTD_inf_sp(
             df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
             prev_date,
-            next_date,
-            N1, N2).cache()
+            next_date).cache()
     else:
         df_divs = rank_turbulence_divergence_sp(
             df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
