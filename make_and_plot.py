@@ -240,8 +240,8 @@ def prepare_heat_map(df, prev_date, next_date, n,debug=False):
                                              n=n)
 
     if debug : print("Log ranks and find max")
-    df_ranked = df_ranked.withColumn('log_rank_1', round(log10(col('rank_1')) * 10) / 10)\
-        .withColumn('log_rank_2',round(log10(col('rank_2')) * 10) / 10).cache()  # Keep first digits after coma
+    df_ranked = df_ranked.withColumn('log_rank_1', round(log10(col('rank_1')) * 100) / 100)\
+        .withColumn('log_rank_2',round(log10(col('rank_2')) * 100) / 100).cache()  # Keep first digits after coma
 
     if debug : print("Match page with titles")
     df_ranked = df_ranked.join(dfs.select('page', 'page_id').distinct(), 'page_id').dropDuplicates(
