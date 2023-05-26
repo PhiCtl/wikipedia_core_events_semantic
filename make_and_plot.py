@@ -480,7 +480,7 @@ if __name__ == '__main__':
 
         for p, n in tqdm(zip(prev_d, next_d)):
 
-            df_ranked, df_heatmap, N1, N2, N = prepare_topic_heatmap(df_topics_sp=df_topics_sp,
+            df_heatmap = prepare_topic_heatmap(df_topics_sp=df_topics_sp,
                                                                      df=dfs,
                                                                      prev_date=p,
                                                                      next_date=n,
