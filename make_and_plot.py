@@ -221,7 +221,7 @@ def prepare_RTD_ranks(df, d1, d2, n=int(1e8)):
            N1, N2, N
 
 
-def prepare_heat_map(df, prev_date, next_date, n,debug=False):
+def prepare_heat_map(df, prev_date, next_date, n, debug=False):
 
     """
     Prepare Rank Turbulence divergence heatmap plot
@@ -271,6 +271,34 @@ def prepare_heat_map(df, prev_date, next_date, n,debug=False):
     df_plot['set_size'] = n
 
     return df_ranked, df_plot, N1, N2, N
+
+
+def prepare_topic_heatmap(df, df_topics_sp, prev_date, next_date, n):
+    df_ranked, _, _, _ = prepare_RTD_ranks(df.where(df.date.isin([prev_date, next_date])),
+                                           prev_date,
+                                           next_date,
+                                           n=n,
+                                           res=10)
+
+    df_ranked_top = df_ranked.withColumn('log_rank_1', round(log10(col('rank_1')) * res) / res) \
+        .withColumn('log_rank_2', round(log10(col('rank_2')) * res) / res).cache()  # Keep first digits after coma
+
+    df_ranked_top = df_ranked_top.join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id') \
+        .dropDuplicates(['page_id', 'rank_1', 'rank_2']).cache()
+
+    w = Window.partitionBy(['log_rank_1', 'log_rank_2']).orderBy(desc('nb_pages'))
+
+    df_agg = df_ranked_top.groupBy('log_rank_1', 'log_rank_2', 'topics_unique') \
+        .agg(count('*').alias('nb_pages')) \
+        .withColumn('topic', first('topics_unique').over(w)).withColumn('topic_pages', first('nb_pages').over(w)) \
+        .groupBy('log_rank_1', 'log_rank_2', 'topic', 'topic_pages').agg(sum('nb_pages').alias('tot_pages'))
+
+    df_plot = df_agg.toPandas()
+    df_plot['perc_topic'] = df_plot['topic_pages'] / df_plot['tot_pages'] * 100
+    df_plot['label'] = df_plot.apply(lambda r: f"{r.topic}:{r.perc_topic}%", axis=1)
+    df_plot['date'] = f"{prev_date} / {next_date}"
+
+    return df_plot
 
 def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000, nb_top_pages=40, debug=False):
 
@@ -363,7 +391,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode',
                         type=str,
-                        choices=['date', 'set_size', 'alpha'],
+                        choices=['date', 'set_size', 'alpha', 'topic'],
                         default='date')
     parser.add_argument('--alpha',
                         type=float,
@@ -441,6 +469,24 @@ if __name__ == '__main__':
         pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_setsize.csv.gzip'), compression='gzip')
         pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_setsize.csv.gzip'), compression='gzip')
         pd.concat(df_stats).to_csv(os.path.join(plot_dir, 'stats_setsize.csv'))
+
+    elif args.mode == 'topic':
+
+        dates = ['2019-12'] + [f'{y}-{m}' for y in ['2020'] for m in
+                               [f'0{i}' if i < 10 else i for i in range(1, 13, 1)]]
+        prev_d = dates[:-1]
+        next_d = dates[1:]
+
+
+        for p, n in tqdm(zip(prev_d, next_d)):
+
+            df_ranked, df_heatmap, N1, N2, N = prepare_heat_map(dfs, p, n, int(10**8))
+
+            df_plot_heatmap.append(df_heatmap)
+
+        pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_topics.csv.gzip'), compression='gzip')
+
+
 
     else:
         # Alpha
