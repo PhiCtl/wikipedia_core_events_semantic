@@ -16,7 +16,7 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 from pyspark import SparkContext
 
-from rank_turbulence_divergence import rank_turbulence_divergence_sp
+from rank_turbulence_divergence import rank_turbulence_divergence_sp, RTD_0_sp, RTD_inf_sp
 
 
 def set_up_mapping(topics=None, grouped=True):
@@ -275,12 +275,25 @@ def prepare_heat_map(df, prev_date, next_date, n,debug=False):
 def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000, nb_top_pages=40, debug=False):
 
     if debug : print("Compute divergence")
-    df_divs = rank_turbulence_divergence_sp(
-        df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
-        prev_date,
-        next_date,
-        N1, N2,
-        alpha=alpha).cache()
+    if alpha == 0:
+        df_divs = RTD_0_sp(
+            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
+            prev_date,
+            next_date,
+            N1, N2).cache()
+    elif np.isinf(alpha):
+        df_divs = RTD_inf_sp(
+            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
+            prev_date,
+            next_date,
+            N1, N2).cache()
+    else:
+        df_divs = rank_turbulence_divergence_sp(
+            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
+            prev_date,
+            next_date,
+            N1, N2,
+            alpha=alpha).cache()
     df_div_pd = df_divs.sort(desc('div')).limit(lim).toPandas()
 
     if debug : print("Find exclusive types ranks")
@@ -432,7 +445,7 @@ if __name__ == '__main__':
 
     else:
         # Alpha
-        alphas = [1e-4, 1e-3, 1e-2, 1e-1, 0.3, 1, 5, 10, 15]
+        alphas = [0, 1e-4, 1e-3, 1e-2, 1e-1, 0.3, 1, 5, 10, 15, np.inf]
         p = '2020-12'
         n = '2021-01'
 
