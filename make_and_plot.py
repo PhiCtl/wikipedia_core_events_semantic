@@ -298,11 +298,11 @@ def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000
 
     # Take the top divergence for both dates
     df_div_pd['div_sign'] = df_div_pd.apply(lambda r: (2 * int(r['rank_2'] < r['rank_1']) - 1) * r[f'div'], axis=1)
-    df_plot_head = df_div_pd[['div_sign', f'div', 'ranks', 'page', 'alpha', 'n']].sort_values(by=f'div_sign', ascending=False)[
-        ['div', 'div_sign', 'page', 'ranks', 'alpha', 'n']] \
+    df_plot_head = df_div_pd.sort_values(by=f'div_sign', ascending=False)[
+        ['div', 'div_sign', 'page', 'ranks', 'alpha', 'set_size']] \
         .head(nb_top_pages // 2)
-    df_plot_tail = df_div_pd[['div_sign', f'div', 'ranks', 'page', 'alpha', 'n']].sort_values(by=f'div_sign', ascending=False)[
-        ['div', 'div_sign', 'page', 'ranks', 'alpha', 'n']] \
+    df_plot_tail = df_div_pd.sort_values(by=f'div_sign', ascending=False)[
+        ['div', 'div_sign', 'page', 'ranks', 'alpha', 'set_size']] \
         .tail(nb_top_pages // 2)
     df_plot = pd.concat([df_plot_head, df_plot_tail])
 
