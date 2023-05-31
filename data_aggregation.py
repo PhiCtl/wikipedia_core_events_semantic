@@ -323,7 +323,7 @@ def automated_main():
         months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
         dates = [f"{year}-{month}" for year in args_y for month in months]
 
-        dfs = setup_data(years=args_y, months=months, spark_session=spark, "/scratch/descourt/pageviews_fr")
+        dfs = setup_data(years=args_y, months=months, spark_session=spark, path="/scratch/descourt/pageviews_fr")
 
         # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
         if '2015' in args_y:
