@@ -122,7 +122,7 @@ def invert_mapping(inv_map, ids):
     return mapping
 
 
-def setup_data(years, months, path="/scratch/descourt/pageviews_en"):
+def setup_data(years, months, spark_session, path="/scratch/descourt/pageviews_en"):
     """
     Load and prepare wikipedia projects pageviews data for given year and month
     :return pyspark dataframe
@@ -130,7 +130,7 @@ def setup_data(years, months, path="/scratch/descourt/pageviews_en"):
 
     def read_file(f_n, date):
         print(f"loading {f_n}")
-        df = spark.read.csv(f_n, sep=r' ')
+        df = spark_session.read.csv(f_n, sep=r' ')
         return df.selectExpr("_c0 as project", "_c1 as page", "_c2 as page_id", "_c3 as access_type", "_c4 as counts",
                              "_c5 as anonym_user").withColumn('date', lit(date))
 
@@ -216,7 +216,7 @@ def match_ids(df, latest_date, project):
     [y, m] = latest_date.split('-')
 
     # Select all available pages and their page ids (raw) for project of interest
-    df_latest = setup_data([y], [m], path=f'/scratch/descourt/pageviews_{project.split(".")[0]}')  # Download all data
+    df_latest = setup_data([y], [m], path=f'/scratch/descourt/pageviews_{project.split(".")[0]}', spark_session=spark)  # Download all data
 
     # Select columns of interest and filter project
     df_latest = df_latest.where((df_latest.project == project) & (df_latest.page_id != 'null')) \
@@ -323,7 +323,7 @@ def automated_main():
         months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
         dates = [f"{year}-{month}" for year in args_y for month in months]
 
-        dfs = setup_data(years=args_y, months=months, path="/scratch/descourt/pageviews_fr")
+        dfs = setup_data(years=args_y, months=months, spark_session=spark, "/scratch/descourt/pageviews_fr")
 
         # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
         if '2015' in args_y:
