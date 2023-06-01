@@ -368,8 +368,8 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print('Merge with topics and retrieve which page_ids do not match')
     df_unmatched = dfs_2019.where((dfs_2019.page_id != 'null') & col('page_id').isNotNull()) \
-        .join(df_topics_sp.select('page_id', 'embed').distinct(), 'page_id', 'left')\
-        .where(col('embed').isNull()).select('page_id').distinct()
+        .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
+        .where(col('topics_unique').isNull()).select('page_id').distinct()
     unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
 
     print('Match the unmatched ids with their target page id')
