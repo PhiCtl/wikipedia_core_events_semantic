@@ -361,13 +361,13 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     year = args.year
 
     print('Load data')
-    if dfs is None:
-        dfs = spark.read.parquet("/scratch/descourt/processed_data_052223_fr/pageviews_fr_2015-2023.parquet")
+    dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
+    dfs_2019 = dfs.where(dfs.date.contains('2019'))
     if df_topics_sp is None:
-        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/embeddings/embeddings-fr-20210401-sp.parquet')
+        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
 
     print('Merge with topics and retrieve which page_ids do not match')
-    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
+    df_unmatched = dfs_2019.where((dfs_2019.page_id != 'null') & col('page_id').isNotNull()) \
         .join(df_topics_sp.select('page_id', 'embed').distinct(), 'page_id', 'left')\
         .where(col('embed').isNull()).select('page_id').distinct()
     unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
@@ -380,27 +380,28 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
     if save_interm:
-        df_matching.write.parquet(f"/scratch/descourt/topics/topic_fr/df_missing_redirects.parquet")
+        df_matching.write.parquet(f"/scratch/descourt/topics/topic_en/df_missing_redirects_2019.parquet")
 
-    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
+    dfs_2019 = dfs_2019.join(df_matching, dfs_2019.page_id == df_matching.redirect, 'left')
     # The left unmatched page_ids correspond in fact already to target pages,
     # so their own id could not be matched and we replace it with original id
-    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
+    dfs_2019 = dfs_2019.withColumn('page_id', coalesce('target', 'page_id'))
 
     print("Recompute the tot view counts")
     w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
-    dfs = dfs.withColumn('page', first('page').over(w))
-    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
+    dfs_2019 = dfs_2019.withColumn('page', first('page').over(w))
+    dfs_2019 = dfs_2019.groupBy('date', 'page_id', 'page').agg(
         sum('tot_count_views').alias('tot_count_views'))
 
     print("Recompute ordinal and fractional ranks")
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    dfs = dfs.withColumn("rank", row_number().over(window))
-    df_fract = dfs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
+    dfs_2019 = dfs_2019.withColumn("rank", row_number().over(window))
+    df_fract = dfs_2019.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs_2019 = dfs_2019.join(df_fract, on=['date', 'tot_count_views'])
 
     print("Write to file")
-    dfs.write.parquet("/scratch/descourt/processed_data_052223_fr/pageviews_fr_2015-2023_matched.parquet")
+    dfs = dfs.where(~dfs.date.contains('2019')).union(dfs_2019)
+    dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
 
     print("Done")
 
