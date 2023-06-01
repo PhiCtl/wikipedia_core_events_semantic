@@ -363,24 +363,24 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     print('Load data')
     dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
     dfs_2019 = dfs.where(dfs.date.contains('2019'))
-    if df_topics_sp is None:
-        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
-
-    print('Merge with topics and retrieve which page_ids do not match')
-    df_unmatched = dfs_2019.where((dfs_2019.page_id != 'null') & col('page_id').isNotNull()) \
-        .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
-        .where(col('topics_unique').isNull()).select('page_id').distinct()
-    unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
-
-    print('Match the unmatched ids with their target page id')
-    mappings = get_target_id(unmatched_ids, project='fr')
-    if save_interm:
-        with open(f"/scratch/descourt/topics/topic_fr/mappings_ids_corrected.pickle", "wb") as handle:
-            pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    mappings_spark = [(k, v) for k, v in mappings.items()]
-    df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
-    if save_interm:
-        df_matching.write.parquet(f"/scratch/descourt/topics/topic_en/df_missing_redirects_2019.parquet")
+    # if df_topics_sp is None:
+    #     df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
+    #
+    # print('Merge with topics and retrieve which page_ids do not match')
+    # df_unmatched = dfs_2019.where((dfs_2019.page_id != 'null') & col('page_id').isNotNull()) \
+    #     .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
+    #     .where(col('topics_unique').isNull()).select('page_id').distinct()
+    # unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
+    #
+    # print('Match the unmatched ids with their target page id')
+    # mappings = get_target_id(unmatched_ids, project='fr')
+    # if save_interm:
+    #     with open(f"/scratch/descourt/topics/topic_fr/mappings_ids_corrected.pickle", "wb") as handle:
+    #         pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # mappings_spark = [(k, v) for k, v in mappings.items()]
+    # df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
+    # if save_interm:
+    df_matching = spark.read.parquet(f"/scratch/descourt/topics/topic_en/df_missing_redirects_2019.parquet")
 
     dfs_2019 = dfs_2019.join(df_matching, dfs_2019.page_id == df_matching.redirect, 'left')
     # The left unmatched page_ids correspond in fact already to target pages,
