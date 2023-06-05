@@ -120,5 +120,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    parse_embeddings()
-    parse_Wikirank_scores(project='fr')
+    parse_metadata()
