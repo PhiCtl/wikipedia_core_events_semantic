@@ -122,7 +122,7 @@ def invert_mapping(inv_map, ids):
     return mapping
 
 
-def setup_data(years, months, spark_session, path="/scratch/descourt/pageviews_en"):
+def setup_data(years, months, spark_session, path="/scratch/descourt/raw_data/pageviews_en"):
     """
     Load and prepare wikipedia projects pageviews data for given year and month
     :return pyspark dataframe
@@ -216,7 +216,7 @@ def match_ids(df, latest_date, project):
     [y, m] = latest_date.split('-')
 
     # Select all available pages and their page ids (raw) for project of interest
-    df_latest = setup_data([y], [m], path=f'/scratch/descourt/pageviews_{project.split(".")[0]}', spark_session=spark)  # Download all data
+    df_latest = setup_data([y], [m], path=f'/scratch/descourt/raw_data/pageviews_{project.split(".")[0]}', spark_session=spark)  # Download all data
 
     # Select columns of interest and filter project
     df_latest = df_latest.where((df_latest.project == project) & (df_latest.page_id != 'null')) \
@@ -307,7 +307,7 @@ def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
 
 
 def automated_main():
-    save_path = "/scratch/descourt/processed_data_052223_fr"
+    save_path = "/scratch/descourt/processed_data/fr"
     os.makedirs(save_path, exist_ok=True)
     save_file = "pageviews_fr_2015-2023.parquet"
     project = 'fr.wikipedia'
@@ -323,7 +323,7 @@ def automated_main():
         months = [str(m) if m / 10 >= 1 else f"0{m}" for m in args_m]
         dates = [f"{year}-{month}" for year in args_y for month in months]
 
-        dfs = setup_data(years=args_y, months=months, spark_session=spark, path="/scratch/descourt/pageviews_fr")
+        dfs = setup_data(years=args_y, months=months, spark_session=spark, path="/scratch/descourt/raw_data/pageviews_fr")
 
         # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
         if '2015' in args_y:
@@ -366,12 +366,12 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print('Load data')
     # TODO make below project specific -> move processed data file from to _en because for french it has _fr
-    dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
+    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
     # TODO remove years
     dfs_2019 = dfs.where(dfs.date.contains('2019'))
     # TODO Make project specific
     if df_topics_sp is None:
-        df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
+        df_topics_sp = spark.read.parquet('/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
 
     # print('Merge with topics and retrieve which page_ids do not match')
     # df_unmatched = dfs_2019.where((dfs_2019.page_id != 'null') & col('page_id').isNotNull()) \
@@ -386,13 +386,13 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     #     with open(f"/scratch/descourt/topics/topic_en/mappings_ids_corrected_2019.pickle", "wb") as handle:
     #         pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # mappings_spark = [(k, v) for k, v in mappings.items()]
-    with open(f"/scratch/descourt/topics/topic_fr/mappings_ids_corrected.pickle", "rb") as handle:
+    with open(f"/scratch/descourt/metadata/topics/topic_en/mappings_ids_corrected_2019.pickle", "rb") as handle:
         mappings = pickle.load(handle)
 
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
     if save_interm:
-        df_matching.write.parquet(f"/scratch/descourt/topics/topic_en/df_missing_redirects_2019.parquet")
+        df_matching.write.parquet(f"/scratch/descourt/metadata/topics/topic_en/df_missing_redirects_2019.parquet")
 
     dfs_2019 = dfs_2019.join(df_matching, dfs_2019.page_id == df_matching.redirect, 'left')
     # The left unmatched page_ids correspond in fact already to target pages,
@@ -414,7 +414,7 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     print("Write to file")
     dfs = dfs.where(~dfs.date.contains('2019')).union(dfs_2019)
     # TODO make project specific
-    dfs.write.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023_matched.parquet")
+    dfs.write.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023_matched.parquet")
 
     print("Done")
 

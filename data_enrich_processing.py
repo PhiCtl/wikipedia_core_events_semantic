@@ -14,8 +14,8 @@ from data_aggregation import get_target_id
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 
-def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip",
-                 path_out='/home/descourt/topic_embeddings/topics-enwiki-20230320-parsed.parquet'):
+def parse_topics(path_in="/scratch/descourt/metadata/topics/topic_en/topics_enwiki.tsv.zip",
+                 path_out='/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet'):
 
     df_topics = pd.read_csv(path_in,
                             sep='\t')  # , converters={'topics': literal_eval} )
@@ -31,8 +31,8 @@ def parse_topics(path_in="/home/descourt/topic_embeddings/topics_enwiki.tsv.zip"
     df_topics = df_topics.explode('topics')
     df_topics.to_parquet(path_out, engine='fastparquet')
 
-def parse_embeddings(path_in="/scratch/descourt/topics/embeddings/article-description-embeddings_frwiki-20210401-fasttext.pickle",
-                     path_out='/scratch/descourt/topics/embeddings/embeddings-fr-20210401.parquet',
+def parse_embeddings(path_in="/scratch/descourt/metadata/semantic_embeddings/fr/article-description-embeddings_frwiki-20210401-fasttext.pickle",
+                     path_out='/scratch/descourt/metadata/semantic_embeddings/fr/embeddings-fr-20210401.parquet',
                      debug=True):
 
     # Load embeddings for < 2021-04
@@ -56,7 +56,7 @@ def parse_embeddings(path_in="/scratch/descourt/topics/embeddings/article-descri
     df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
     df_embeds_vec.write.parquet(path_out.split('.')[0] + "-sp.parquet")
 
-def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality_en_March21.json.gz",
+def parse_ORES_scores(path_scores="/scratch/descourt/metadata/quality/ORES_quality_en_March21.json.gz",
                       save_interm=True):
 
     df_quality = spark.read.json(path_scores)
@@ -73,7 +73,7 @@ def parse_ORES_scores(path_scores="/scratch/descourt/topics/quality/ORES_quality
     df_quality = df_quality.join(df_matching, 'revision_id')
     df_quality.write.parquet(path_scores.split('.')[0] + '.parquet')
 
-def parse_Wikirank_scores(path_in='/scratch/descourt/topics/quality/wikirank_scores_201807.tsv.zip',
+def parse_Wikirank_scores(path_in='/scratch/descourt/metadata/quality/wikirank_scores_201807.tsv.zip',
                           project='en'):
 
     path_out = path_in.split('.')[0] + f'_{project}.parquet'
