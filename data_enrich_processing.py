@@ -100,10 +100,11 @@ def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bs
     path_out = path_in.split('.')[0] + '_' + project + '.parquet'
     df_meta_filt = df_meta.where(f'wiki_db = "{project}wiki"')
     # Adapt timestamp to our custom timestamp
-    df_meta_filt = df_meta_filt.withColumn('creation_date', concat(split(col('page_creation_timestamp'), '-')[0],
-                                                                   lit('-'),
-                                                                   split(col('page_creation_timestamp'), '-')[1]))\
-                               .drop('creation_year', 'creation_month')
+    if 'creation_date' in df_meta_filt.columns:
+        df_meta_filt = df_meta_filt.withColumn('creation_date', concat(split(col('page_creation_timestamp'), '-')[0],
+                                                                       lit('-'),
+                                                                       split(col('page_creation_timestamp'), '-')[1]))\
+                                   .drop('creation_year', 'creation_month')
     df_meta_filt.write.parquet(path_out)
 
 
