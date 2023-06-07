@@ -121,4 +121,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_2022-11.parquet')
+    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bios_bsdk_phili_2022-11.parquet')
