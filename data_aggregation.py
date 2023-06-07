@@ -441,8 +441,9 @@ def match_over_months():
             .select(col("a.first_name"), col("b.last_name"), col("a.first_date"), col("b.last_date"),
                     col(f"a.page_id_{i - 1}").alias(f"page_id_{i - 1}"),
                     col(f"b.page_id_{i - 1}").alias(f"page_id_{i}")).cache()
-        i += 1
+
         n = dfs_change.where(col(f"page_id_{i}").isNotNull()).count()
+        i += 1
 
     print(n)
     dfs_change.write.parquet("/scratch/descourt/processed_data/en/pageviews_articles_evolution.parquet")
