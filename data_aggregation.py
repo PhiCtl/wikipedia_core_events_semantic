@@ -418,13 +418,40 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
     print("Done")
 
+def match_over_months():
 
+    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")\
+               .withColumn('date', to_date(col('date'),'yyyy-MM')).cache()
+
+    w_asc = Window.partitionBy('page_id').orderBy(asc(col('date')))
+    w_desc = Window.partitionBy('page_id').orderBy(desc(col('date')))
+    dfs_change = dfs.select(col('page_id').alias('page_id_0'),
+                            first('page').over(w_asc).alias('first_name'),
+                            first('page').over(w_desc).alias('last_name'),
+                            first(col('date')).over(w_asc).alias('first_date'),
+                            add_months(first(col('date')).over(w_desc), 1).alias('last_date')) \
+                    .distinct().cache()
+
+    n, i = 10, 1
+    while n > 0 or i <= 10:
+        print(f"{i} - {n}")
+        dfs_change = dfs_change.alias('a') \
+            .join(dfs_change.alias('b'),
+                  (col("a.last_name") == col("b.first_name")) & (col("a.last_date") == col("b.first_date")), 'left') \
+            .select(col("a.first_name"), col("b.last_name"), col("a.first_date"), col("b.last_date"),
+                    col(f"a.page_id_{i - 1}").alias(f"page_id_{i - 1}"),
+                    col(f"b.page_id_{i - 1}").alias(f"page_id_{i}")).cache()
+        i += 1
+        n = dfs_change.where(col(f"page_id_{i}").isNotNull()).count()
+
+    print(n)
+    dfs_change.write.parquet("/scratch/descourt/processed_data/en/pageviews_articles_evolution.parquet")
 
 
 if __name__ == '__main__':
     conf = pyspark.SparkConf().setMaster("local[5]").setAll([
-        ('spark.driver.memory', '70G'),
-        ('spark.executor.memory', '70G'),
+        ('spark.driver.memory', '100G'),
+        ('spark.executor.memory', '100G'),
         ('spark.driver.maxResultSize', '0'),
         ('spark.executor.cores', '5'),
         ('spark.local.dir', '/scratch/descourt/spark')
@@ -434,4 +461,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
     sc.setLogLevel('ERROR')
-    match_missing_ids()
+    match_over_months()
