@@ -420,8 +420,8 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
 
 def match_over_months():
 
-    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet") \
-               .where(~dfs.date.isin(['2022-12', '2023-01', '2023-02', '2023-03']))\
+    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
+    dfs = dfs.where(~dfs.date.isin(['2022-12', '2023-01', '2023-02', '2023-03']))\
                .withColumn('date', to_date(col('date'),'yyyy-MM')).cache()
 
     w_asc = Window.partitionBy('page_id').orderBy(asc(col('date')))
