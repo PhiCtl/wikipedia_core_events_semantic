@@ -434,7 +434,7 @@ def match_over_months():
                     .distinct().cache()
 
     n, i = 10, 1
-    while n > 0 or i <= 10:
+    while n > 0 and i <= 10:
         print(f"{i} - {n}")
         dfs_change = dfs_change.alias('a') \
             .join(dfs_change.alias('b'),
