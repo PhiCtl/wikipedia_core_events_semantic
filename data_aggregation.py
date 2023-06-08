@@ -439,7 +439,7 @@ def match_over_months():
             .join(dfs_change.alias('b'),
                   (col("a.last_name") == col("b.first_name")) & (col("a.last_date") == col("b.first_date")), 'left') \
             .select(col("a.first_name"), col('a.last_name'), col("b.last_name").alias(f'last_name_{i}'),
-                    col("a.first_date"), col('b.last_date'), col("b.last_date").alias(f'last_date_{i}'),
+                    col("a.first_date"), col('a.last_date'), col("b.last_date").alias(f'last_date_{i}'),
                     col(f"a.page_id_{i - 1}").alias(f"page_id_{i - 1}"),
                     col(f"b.page_id_{i - 1}").alias(f"page_id_{i}")).cache()
         dfs_change = dfs_change.withColumn('last_name', coalesce(f'last_name_{i}', 'last_name')) \
