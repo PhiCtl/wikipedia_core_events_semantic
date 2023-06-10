@@ -13,6 +13,14 @@ from data_aggregation import get_target_id
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
+def find_topic_specific(topics):
+    not_starred = [t for t in topics if not '*' in t]
+    if len(not_starred) == 0:
+        return topics[0]
+    else:
+        return not_starred[0]
+find_topic_specific_udf = udf(find_topic_specific)
+
 
 def parse_topics(path_in="/scratch/descourt/metadata/topics/topic_en/topics_enwiki.tsv.zip",
                  path_out='/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet'):
@@ -105,6 +113,15 @@ def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bs
                                                                        lit('-'),
                                                                        split(col('page_creation_timestamp'), '-')[1]))\
                                    .drop('creation_year', 'creation_month')
+
+    if 'topic' in df_meta_filt.columns:
+        df_meta_filt = df_meta_filt.where('score >= "0.5"') \
+            .select('page_id', 'topic', col('score').cast('float')) \
+            .groupBy('page_id') \
+            .agg(sort_array(collect_list(struct("score", "topic")), asc=False).alias("topicsList")) \
+            .select('page_id', col('topicsList.topic').alias('topics'),
+                    find_topic_specific_udf(col('topicsList.topic')).alias('topic')).cache()
+
     df_meta_filt.write.parquet(path_out)
 
 
