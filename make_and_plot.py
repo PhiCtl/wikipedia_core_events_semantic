@@ -422,7 +422,7 @@ if __name__ == '__main__':
     sc.setLogLevel('ERROR')
 
     dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
-    # df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
+    df_topics_sp = spark.read.parquet('/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
     plot_dir = "/scratch/descourt/plots/files/"
     os.makedirs(plot_dir, exist_ok=True)
 
@@ -433,7 +433,7 @@ if __name__ == '__main__':
 
     if args.mode == 'rtd':
 
-        df = extract_volume(dfs, high=True)
+        df = extract_volume(dfs, high=True).cache()
 
         dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12']\
                 + [f'{y}-{m}' for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in
