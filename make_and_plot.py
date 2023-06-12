@@ -421,8 +421,8 @@ if __name__ == '__main__':
     sc = spark.sparkContext
     sc.setLogLevel('ERROR')
 
-    dfs = spark.read.parquet("/scratch/descourt/processed_data_052223/pageviews_en_2015-2023.parquet")
-    df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
+    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
+    # df_topics_sp = spark.read.parquet('/scratch/descourt/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
     plot_dir = "/scratch/descourt/plots/files/"
     os.makedirs(plot_dir, exist_ok=True)
 
