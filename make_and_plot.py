@@ -1,5 +1,6 @@
 import os
 import argparse
+from functools import reduce
 
 import pandas as pd
 import numpy as np
@@ -17,6 +18,7 @@ from pyspark.sql.functions import *
 from pyspark import SparkContext
 
 from rank_turbulence_divergence import rank_turbulence_divergence_sp, RTD_0_sp, RTD_inf_sp
+from pages_groups_extraction import extract_volume
 
 
 def set_up_mapping(topics=None, grouped=True):
@@ -390,7 +392,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode',
                         type=str,
-                        choices=['date', 'set_size', 'alpha', 'topic'],
+                        choices=['date', 'set_size', 'alpha', 'topic', 'rtd'],
                         default='date')
     parser.add_argument('--alpha',
                         type=float,
@@ -428,6 +430,28 @@ if __name__ == '__main__':
     df_plot_heatmap = []
     df_plot_divs = []
     df_stats = []
+
+    if args.mode == 'rtd':
+
+        df = extract_volume(dfs, high=True)
+
+        dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12']\
+                + [f'{y}-{m}' for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in
+                               [f'0{i}' if i < 10 else i for i in range(1, 13, 1)]]\
+                + ['2023-01', '2023-02', '2023-03']
+        prev_d = dates[:-1]
+        next_d = dates[1:]
+
+        for p, n in tqdm(zip(prev_d, next_d)):
+            df_ranked, N1, N2, N = prepare_RTD_ranks(df.where(df.date.isin([p, n])),
+                                                   p,
+                                                   n,
+                                                   n=10**7)
+            _, df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**7), N1, N2)
+
+            df_plot_divs.append(df_divs)
+
+        reduce(DataFrame.unionAll, df_plot_divs).write.parquet('/scratch/descourt/plots/files/RTD_all.parquet')
 
     if args.mode == 'date':
 
