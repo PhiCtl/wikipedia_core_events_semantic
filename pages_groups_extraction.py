@@ -1,19 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from pyspark.sql.functions import pow
 from pyspark.sql import *
 from pyspark.sql.functions import *
-import pyspark
 
-
-def find_inflection_point(y):
-    # Assumes curve is not noisy
-    # Gives us 0
-
-    dy = np.gradient(y)
-    m_idx = np.argmax(dy)
-    return m_idx, y[m_idx]
 
 
 def find_hinge_point_np(y):
@@ -49,10 +39,10 @@ def compute_gradient(df, x):
     return df_h.drop('p', 'n', 'h_p', 'h_n')
 
 
-def find_hinge_point(df):
+def find_hinge_point(df, eps=1):
     df_grad = compute_gradient(df, x='perc_views')
     slopes = df.groupBy('date').agg(count('*').alias('slope')).select(col('date').alias('d'),
-                                                                      (100 / col('slope')).alias('slope'))
+                                                                      (100 / col('slope') * eps).alias('slope'))
     df_hinge = df_grad.join(slopes, slopes.d == df_grad.date) \
         .drop('d') \
         .sort(asc('rank')) \
@@ -60,19 +50,11 @@ def find_hinge_point(df):
         .groupBy('date').agg(first('perc_views').alias('hinge_perc'), first('perc_rank').alias('hinge_rank'))
     return df_hinge
 
+def compute_volumes(df, partition='date', sampling=1):
 
-def find_inflection_point(df):
-    df_grad = compute_gradient(df, x='perc_views')
-    df_lapl = compute_gradient(df_grad, x='d_perc_views')
-    df_inflection = df_lapl.sort(asc('rank')) \
-        .filter(col('d_d_perc_views') <= 0) \
-        .groupBy('date') \
-        .agg(first('perc_views').alias('inf_perc'), first('rank').alias('infl_rank'))
-    return df_inflection
-
-def compute_volumes(df, partition='date'):
     window = Window.partitionBy(partition).orderBy('rank')
-
+    # Sample for robustness tests
+    df = df.where((col('rank') % sampling == 0) | (col('rank') == 1))
     df_cutoff = df.withColumn('cum_views', sum('tot_count_views').over(window))
     df_sum = df.groupBy(partition).agg(sum('tot_count_views').alias('tot_counts'), count('*').alias('tot_nb_pages'))
     df_cutoff = df_cutoff.join(df_sum, partition) \
@@ -81,10 +63,10 @@ def compute_volumes(df, partition='date'):
 
     return df_cutoff
 
-def extract_volume(df, high=True):
-    df_cutoff = compute_volumes(df)
+def extract_volume(df, high=True, sampling=1, eps=1):
+    df_cutoff = compute_volumes(df, sampling=sampling)
     # Find hinge point
-    df_hinge = find_hinge_point(df_cutoff).cache()
+    df_hinge = find_hinge_point(df_cutoff, eps=eps).cache()
     # Take all pages which are below hinge point for views
     if high :
         df_volume = df_cutoff.join(df_hinge, 'date').where(col('perc_views') <= col('hinge_perc'))
