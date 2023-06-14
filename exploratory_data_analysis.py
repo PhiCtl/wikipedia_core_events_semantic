@@ -8,7 +8,7 @@ from pyspark.sql.functions import *
 from pyspark import SparkContext
 from tqdm import tqdm
 
-from volumes_extraction import *
+from pages_groups_extraction import *
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 conf = pyspark.SparkConf().setMaster("local[*]").setAll([
