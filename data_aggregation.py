@@ -423,7 +423,7 @@ def match_over_months():
     Match page ids and names over months so as to keep track of articles over time
     """
 
-    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
+    dfs = spark.read.parquet("/scratch/descourt/processed_data/fr/pageviews_fr_2015-2023.parquet")
     dfs = dfs.withColumn('date', to_date(col('date'),'yyyy-MM')).cache()
 
     w_asc = Window.partitionBy('page_id').orderBy(asc(col('date')))
@@ -453,7 +453,7 @@ def match_over_months():
         i += 1
 
     print(n)
-    dfs_change.write.parquet("/scratch/descourt/processed_data/en/pageviews_en_articles_ev_march23.parquet")
+    dfs_change.write.parquet("/scratch/descourt/processed_data/df/pageviews_fr_articles_ev_march23.parquet")
 
 
 if __name__ == '__main__':
