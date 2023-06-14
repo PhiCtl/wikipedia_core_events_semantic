@@ -7,41 +7,45 @@ import os
 import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
-from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import VectorAssembler, StandardScaler
 
 from data_aggregation import get_target_id
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
-def find_topic_specific(topics):
-    not_starred = [t for t in topics if not '*' in t]
-    if len(not_starred) == 0:
-        return topics[0]
-    else:
-        return not_starred[0]
-find_topic_specific_udf = udf(find_topic_specific)
-
+"""
+Script to parse raw metadata
+"""
 
 def parse_topics(path_in="/scratch/descourt/metadata/topics/topic_en/topics_enwiki.tsv.zip",
                  path_out='/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet'):
+    """
+    Process topic .tsv dataframe into .parquet
+    """
 
     df_topics = pd.read_csv(path_in,
                             sep='\t')  # , converters={'topics': literal_eval} )
+    # Extract topics and scores from dictionnary (stored as {topic1: score, topic2:score, etc..})
     df_topics['topics'] = df_topics['topics'].apply(
         lambda st: [literal_eval(s.strip())['topic'] for s in st[1:-1].split("\n")])
     df_topics['topics'] = df_topics['topics'].apply(
         lambda l: [x.lower().strip().replace("'", '') for x in l])
-    df_topics['page_title'] = df_topics['page_title'].apply(lambda p: p.lower() if isinstance(p, str) else str(p))
+    # Select most confident topic
     df_topics['topics_unique'] = df_topics['topics'].apply(lambda l: l[0])
+    # Select most confident topic which is not starred (less generic)
     df_topics['topics_specific_unique'] = df_topics['topics'].apply(
         lambda l: l[0] if len([t for t in l if not '*' in t]) == 0 else [t for t in l if not '*' in t][0])
-    df_topics['weight'] = df_topics['topics'].apply(lambda l: 1 / len(l))
     df_topics = df_topics.explode('topics')
     df_topics.to_parquet(path_out, engine='fastparquet')
 
 def parse_embeddings(path_in="/scratch/descourt/metadata/semantic_embeddings/fr/article-description-embeddings_frwiki-20210401-fasttext.pickle",
                      path_out='/scratch/descourt/metadata/semantic_embeddings/fr/embeddings-fr-20210401.parquet',
                      debug=True):
+
+    """
+    Parse semantic embeddings and normalize the embeddings vectors
+    return parquet file
+    """
 
     # Load embeddings for < 2021-04
     if debug: print("Load embeddings for < 2021-04")
@@ -61,8 +65,10 @@ def parse_embeddings(path_in="/scratch/descourt/metadata/semantic_embeddings/fr/
     df_embeds = spark.read.parquet(path_out)
     assembler = VectorAssembler(inputCols=[c for c in df_embeds.columns if c != 'page_id'],
                                 outputCol='embed')
+    standardScaler = StandardScaler(inputCol='embed', outputCol='embed_norm')
     df_embeds_vec = assembler.transform(df_embeds).select('page_id', 'embed')
-    df_embeds_vec.write.parquet(path_out.split('.')[0] + "-sp.parquet")
+    df_embeds_vec = standardScaler.fit(df_embeds_vec).transform(df_embeds_vec).select('page_id', 'embed')
+    df_embeds_vec.write.parquet(path_out.split('.')[0] + "-norm.parquet")
 
 def parse_ORES_scores(path_scores="/scratch/descourt/metadata/quality/ORES_quality_en_March21.json.gz",
                       save_interm=True):
@@ -138,4 +144,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bios_bsdk_phili_2022-11.parquet')
+    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bios_bsdk_phili_2022-11.parquet', project='fr')
