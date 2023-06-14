@@ -424,7 +424,7 @@ def match_over_months():
     """
 
     dfs = spark.read.parquet("/scratch/descourt/processed_data/fr/pageviews_fr_2015-2023.parquet")
-    dfs = dfs.withColumn('date', to_date(col('date'),'yyyy-MM')).cache()
+    dfs = dfs.withColumn('date', to_date(col('date'),'yyyy-MM')).where(col('date') <= to_date(lit('2022-11'), 'yyyy-MM')).cache()
 
     w_asc = Window.partitionBy('page_id').orderBy(asc(col('date')))
     w_desc = Window.partitionBy('page_id').orderBy(desc(col('date')))
@@ -453,7 +453,7 @@ def match_over_months():
         i += 1
 
     print(n)
-    dfs_change.write.parquet("/scratch/descourt/processed_data/df/pageviews_fr_articles_ev_march23.parquet")
+    dfs_change.write.parquet("/scratch/descourt/processed_data/df/pageviews_fr_articles_ev_nov22.parquet")
 
 
 if __name__ == '__main__':
