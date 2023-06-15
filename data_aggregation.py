@@ -61,7 +61,7 @@ def filter_data(df, projects, dates):
     df_filt = df.where(df.project.isin([l+'.wikipedia' for l in projects])) \
         .filter(df.date.isin(dates)) \
         .select(col('page').alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type',
-                (split('project', '.')[0]).alias('project') )
+                split('project',  '\.')[0].alias('project') )
     if 'en' in projects and len(projects) == 1:
         df_filt = df_filt.filter(~df_filt.page.contains('User:') & \
                                  ~df_filt.page.contains('Wikipedia:') & \
