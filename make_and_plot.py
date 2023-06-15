@@ -301,7 +301,7 @@ def prepare_topic_heatmap(df, df_topics_sp, prev_date, next_date, n, res=10):
 
     return df_plot
 
-def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000, nb_top_pages=40, debug=False):
+def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000, nb_top_pages=40, debug=False, make_plot=True):
 
     if debug : print("Compute divergence")
     if alpha == 0:
@@ -322,36 +322,41 @@ def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000
             next_date,
             N1, N2,
             alpha=alpha).cache()
-    df_div_pd = df_divs.sort(desc('div')).limit(lim).toPandas()
 
-    if debug : print("Find exclusive types ranks")
-    max_rk_1 = df_divs.select(max('rank_1').alias('m_1')).collect()[0]['m_1']
-    max_rk_2 = df_divs.select(max('rank_2').alias('m_2')).collect()[0]['m_2']
+    if make_plot:
+        df_div_pd = df_divs.sort(desc('div')).limit(lim).toPandas()
 
-    if debug : print("Find plotting settings")
-    # Save settings
-    df_div_pd['alpha'] = alpha
-    df_div_pd['set_size'] = n
-    # For labelling
-    df_div_pd['ranks'] = df_div_pd.apply(lambda r: f"{int(r['rank_1'])} <> {int(r['rank_2'])}", axis=1)
-    # Note the exclusive types with an asterix
-    df_div_pd['page'] = df_div_pd.apply(lambda r: r.page + str('*') if ((r['rank_1'] == max_rk_1) | (r['rank_2'] == max_rk_2)) else r.page, axis=1)
+        if debug : print("Find exclusive types ranks")
+        max_rk_1 = df_divs.select(max('rank_1').alias('m_1')).collect()[0]['m_1']
+        max_rk_2 = df_divs.select(max('rank_2').alias('m_2')).collect()[0]['m_2']
 
-    # Take the top divergence for both dates
-    df_div_pd['div_sign'] = df_div_pd.apply(lambda r: (2 * int(r['rank_2'] < r['rank_1']) - 1) * r[f'div'], axis=1)
-    df_plot_head = df_div_pd.sort_values(by=f'div_sign', ascending=False)[
-        ['div', 'div_sign', 'page', 'ranks', 'alpha', 'set_size']] \
-        .head(nb_top_pages // 2)
-    df_plot_tail = df_div_pd.sort_values(by=f'div_sign', ascending=False)[
-        ['div', 'div_sign', 'page', 'ranks', 'alpha', 'set_size']] \
-        .tail(nb_top_pages // 2)
-    df_plot = pd.concat([df_plot_head, df_plot_tail])
+        if debug : print("Find plotting settings")
+        # Save settings
+        df_div_pd['alpha'] = alpha
+        df_div_pd['set_size'] = n
+        # For labelling
+        df_div_pd['ranks'] = df_div_pd.apply(lambda r: f"{int(r['rank_1'])} <> {int(r['rank_2'])}", axis=1)
+        # Note the exclusive types with an asterix
+        df_div_pd['page'] = df_div_pd.apply(lambda r: r.page + str('*') if ((r['rank_1'] == max_rk_1) | (r['rank_2'] == max_rk_2)) else r.page, axis=1)
 
-    # labels
-    df_plot['month'] = [prev_date if s < 0 else next_date for s in df_plot['div_sign'].values]
-    df_plot['date'] = f"{prev_date} / {next_date}"
+        # Take the top divergence for both dates
+        df_div_pd['div_sign'] = df_div_pd.apply(lambda r: (2 * int(r['rank_2'] < r['rank_1']) - 1) * r[f'div'], axis=1)
+        df_plot_head = df_div_pd.sort_values(by=f'div_sign', ascending=False)[
+            ['div', 'div_sign', 'page', 'ranks', 'alpha', 'set_size']] \
+            .head(nb_top_pages // 2)
+        df_plot_tail = df_div_pd.sort_values(by=f'div_sign', ascending=False)[
+            ['div', 'div_sign', 'page', 'ranks', 'alpha', 'set_size']] \
+            .tail(nb_top_pages // 2)
+        df_plot = pd.concat([df_plot_head, df_plot_tail])
 
-    return df_plot, df_divs
+        # labels
+        df_plot['month'] = [prev_date if s < 0 else next_date for s in df_plot['div_sign'].values]
+        df_plot['date'] = f"{prev_date} / {next_date}"
+
+        return df_plot, df_divs
+
+    else:
+        return df_divs
 
 def prepare_stats(df_rank, df_div, dfs, prev_date, next_date, alpha, n):
 
@@ -392,7 +397,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode',
                         type=str,
-                        choices=['date', 'set_size', 'alpha', 'topic', 'rtd'],
+                        choices=['date', 'alpha', 'rtd'],
                         default='date')
     parser.add_argument('--alpha',
                         type=float,
@@ -421,10 +426,14 @@ if __name__ == '__main__':
     sc = spark.sparkContext
     sc.setLogLevel('ERROR')
 
-    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
+    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")\
+        .withColumn('project', lit('en'))
     df_topics_sp = spark.read.parquet('/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
-    plot_dir = "/scratch/descourt/plots/files/"
+    plot_dir = "/scratch/descourt/plots/thesis"
     os.makedirs(plot_dir, exist_ok=True)
+
+    # Matching page ids across time based on last title to avoid pages popping up
+    dfs_change_all = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_articles_ev_2023-03.parquet")
 
     # Plot dataframes
     df_plot_heatmap = []
@@ -433,7 +442,10 @@ if __name__ == '__main__':
 
     if args.mode == 'rtd':
 
-        df = extract_volume(dfs, high=True).cache()
+        df = extract_volume(dfs, high=True)
+        df = df.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
+                       dfs_change_all.page_ids == df.page_id) \
+            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank')
 
         dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12']\
                 + [f'{y}-{m}' for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in
@@ -447,11 +459,12 @@ if __name__ == '__main__':
                                                    p,
                                                    n,
                                                    n=10**7)
-            _, df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**7), N1, N2)
+            df_ranked = df_ranked.join(df.select('page', 'page_id').distinct(), 'page_id')
+            df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**7), N1, N2, make_plot=False)
 
             df_plot_divs.append(df_divs)
 
-        reduce(DataFrame.unionAll, df_plot_divs).write.parquet('/scratch/descourt/plots/files/RTD_all.parquet')
+        reduce(DataFrame.unionAll, df_plot_divs).write.parquet(os.path.join(plot_dir, 'RTD_all.parquet'))
 
     if args.mode == 'date':
 
@@ -459,6 +472,10 @@ if __name__ == '__main__':
                                [f'0{i}' if i < 10 else i for i in range(1, 13, 1)]]
         prev_d = dates[:-1]
         next_d = dates[1:]
+
+        dfs = dfs.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
+                       dfs_change_all.page_ids == dfs.page_id) \
+            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank')
 
         for p, n in tqdm(zip(prev_d, next_d)):
 
@@ -474,68 +491,33 @@ if __name__ == '__main__':
         pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_dates.csv.gzip'), compression='gzip')
         pd.concat(df_stats).to_csv(os.path.join(plot_dir, 'stats_dates.csv'))
 
-    elif args.mode == 'set_size':
 
-        sizes = [int(np.power(10, i)) for i in [3, 4,5,6,7,8]]
-        p = '2015-07'
-        n = '2023-03'
+    elif args.mode == 'alpha':
 
-        for size in tqdm(sizes):
-
-            df_ranked, df_heatmap, N1, N2, N = prepare_heat_map(dfs, p, n, size)
-            df_div_pd, df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, size, N1, N2)
-            stats = prepare_stats(df_ranked, df_divs, dfs, p, n, args.alpha, size)
-
-            df_plot_heatmap.append(df_heatmap)
-            df_plot_divs.append(df_div_pd)
-            df_stats.append(stats)
-
-        pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_setsize.csv.gzip'), compression='gzip')
-        pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_setsize.csv.gzip'), compression='gzip')
-        pd.concat(df_stats).to_csv(os.path.join(plot_dir, 'stats_setsize.csv'))
-
-    elif args.mode == 'topic':
-
-        dates = ['2019-12'] + [f'{y}-{m}' for y in ['2020'] for m in
-                               [f'0{i}' if i < 10 else i for i in range(1, 13, 1)]]
-        prev_d = dates[:-1]
-        next_d = dates[1:]
-
-
-        for p, n in tqdm(zip(prev_d, next_d)):
-
-            df_heatmap = prepare_topic_heatmap(df_topics_sp=df_topics_sp,
-                                                                     df=dfs,
-                                                                     prev_date=p,
-                                                                     next_date=n,
-                                                                     n=int(10**8))
-
-            df_plot_heatmap.append(df_heatmap)
-
-        pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_topics.csv.gzip'), compression='gzip')
-
-
-
-    else:
-        # Alpha
-        alphas = [0, 1e-4, 1e-3, 1e-2, 1e-1, 0.3, 1, 5, 10, 15, np.inf]
+        # Alphas
+        alphas = [0, 0.3, np.inf] # TODO put back to full range for animations !
+        # Dates to compare
         p = '2020-12'
         n = '2021-01'
 
-        df_ranked, df_heatmap, N1, N2, N = prepare_heat_map(dfs, p, n, int(10 ** 8))
-        df_plot_heatmap.append(df_heatmap)
+        # Match page ids to avoid pages popping up
+        dfs = dfs.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
+                       dfs_change_all.page_ids == dfs.page_id) \
+            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank')
+        df_ranked, N1, N2, N = prepare_RTD_ranks(dfs.where(dfs.date.isin([p, n])),
+                                                 p,
+                                                 n,
+                                                 n=10 ** 8)
+        # Retrieve page titles
+        df_ranked = df_ranked.join(dfs.select('page', 'page_id').distinct(), 'page_id')
 
         for alpha in tqdm(alphas):
             df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha=alpha, prev_date=p,
-                                                         next_date=n, n=int(10**8), N1=N1, N2=N2)
-            stats = prepare_stats(df_ranked, df_divs, dfs, p, n, alpha, int(10**8))
+                                                         next_date=n, n=int(10**8), N1=N1, N2=N2, make_plot=True)
 
             df_plot_divs.append(df_div_pd)
-            df_stats.append(stats)
 
-        pd.concat(df_plot_heatmap).to_csv(os.path.join(plot_dir, 'heatmap_alphas.csv.gzip'), compression='gzip')
         pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_alphas.csv.gzip'), compression='gzip')
-        pd.concat(df_stats).to_csv(os.path.join(plot_dir, 'stats_alphas.csv'))
 
 
 
