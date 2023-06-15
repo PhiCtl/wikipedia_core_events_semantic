@@ -57,7 +57,7 @@ def filter_data(df, projects, dates):
     :param dates: list of strings of format YYYY-MM
     """
 
-    specials_to_filt = list(set([*specials(project) for project in projects]))
+    specials_to_filt = ['Main_Page', '-', 'Search']
     df_filt = df.where(df.project.isin([l+'.wikipedia' for l in projects])) \
         .filter(df.date.isin(dates)) \
         .select(col('page').alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type',
