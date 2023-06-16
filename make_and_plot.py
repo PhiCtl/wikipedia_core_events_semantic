@@ -442,10 +442,10 @@ if __name__ == '__main__':
 
     if args.mode == 'rtd':
 
-        df = extract_volume(dfs, high=True)
+        df = extract_volume(dfs, high=True).cache()
         df = df.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
                        dfs_change_all.page_ids == df.page_id) \
-            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank')
+            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank').cache()
 
         dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12']\
                 + [f'{y}-{m}' for y in ['2016', '2017', '2018', '2019', '2020', '2021', '2022'] for m in
@@ -503,13 +503,13 @@ if __name__ == '__main__':
         # Match page ids to avoid pages popping up
         dfs = dfs.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
                        dfs_change_all.page_ids == dfs.page_id) \
-            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank')
+            .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank').cache()
         df_ranked, N1, N2, N = prepare_RTD_ranks(dfs.where(dfs.date.isin([p, n])),
                                                  p,
                                                  n,
                                                  n=10 ** 8)
         # Retrieve page titles
-        df_ranked = df_ranked.join(dfs.select('page', 'page_id').distinct(), 'page_id')
+        df_ranked = df_ranked.join(dfs.select('page', 'page_id').distinct(), 'page_id').cache()
 
         for alpha in tqdm(alphas):
             df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha=alpha, prev_date=p,
