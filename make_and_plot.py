@@ -183,7 +183,7 @@ def plot_perc_topics(df, fontsize=10, path="/home/descourt/interm_results/data_p
     plt.savefig(path)
 
 
-def prepare_RTD_ranks(df, d1, d2, n=int(1e8)):
+def prepare_RTD_ranks(df, d1, d2, n=int(1e8), df_topics=None):
 
     """
     Prepare ranking heatmap plot
@@ -204,23 +204,36 @@ def prepare_RTD_ranks(df, d1, d2, n=int(1e8)):
         .limit(n) \
         .groupBy('page_id').pivot('date').sum('fractional_rank')
 
-    df_comparison = df_piv.where(~col(d2).isNull() | ~col(d1).isNull()).cache()
+    if df_topics is not None:
+        df_piv = df_piv.join(df_topics, on='page_id')
+    else:
+        df_piv = df_piv.withColumn('topic', lit('no_topic'))
 
-    N1 = df_comparison.where(~col(d1).isNull()).count()
-    N2 = df_comparison.where(~col(d2).isNull()).count()
-    N = df_comparison.where(~col(d2).isNull() & ~col(d1).isNull()).count()
+    # Take non null per topic
+    w = Window.partitionBy('topic')
+    df_comparison = df_piv.select('page_id', col(d1), col(d2),
+                                  when(col(d2).isNull(), True).otherwise(False).over(w).alias('d2isNull'),
+                                  when(col(d1).isNull(), True).otherwise(False).over(w).alias('d1isNull'))\
+                          .where(~col('d2isNull') | ~col('d1isNull')).cache()
 
-    last_rk1 = N1 + 0.5 * (N2 - N)
-    last_rk2 = N2 + 0.5 * (N1 - N)
+    N1s = df_comparison.groupBy('topic').agg(sum( when(~col('d1isNull'), 1).otherwise(0)).alias('n1'))
+    N2s = df_comparison.groupBy('topic').agg(sum( when(~col('d2isNull'), 1).otherwise(0)).alias('n2'))
+    Ns = df_comparison.groupBy('topic').agg(sum( when( (~col('d2isNull') & ~col('d1isNull')), 1).otherwise(0)).alias('n'))
+
+
+    ns = N1s.join(N2s, on='topic')\
+            .join(Ns, on='topic')\
+            .select('n1', 'n2', 'n', (col('n1') + 0.5*(col('n2') - col('n'))).alias('last_rk1'),
+                    (col('n2') + 0.5*(col('n1') - col('n'))).alias('last_rk2'))
+
     df_comparison = df_comparison.withColumn(d1 + '_nn', col(d1)).withColumn(d2 + '_nn', col(d2))
-    df_comparison = df_comparison.fillna({d1 + '_nn': last_rk1, d2 + '_nn': last_rk2})
 
-    return df_comparison.select(col(d1).alias('prev_rank_1'),
-                                col(d2).alias('prev_rank_2'),
-                                col(d1 + '_nn').alias('rank_1'),
-                                col(d2 + '_nn').alias('rank_2'),
-                                'page_id'),\
-           N1, N2, N
+    df_comparison = df_comparison.join(ns, on='topic').select(
+        coalesce(d1 + '_nn', 'last_rk1').alias('rank_1'), coalesce(d2 + '_nn', 'last_rk2').alias('rank_2'),
+        col(d1).alias('prev_rank_1'), col(d2).alias('prev_rank_2'), 'page_id',
+        'topic', 'n1', 'n2', 'n')
+
+    return df_comparison
 
 
 def prepare_heat_map(df, prev_date, next_date, n, debug=False):
@@ -301,26 +314,30 @@ def prepare_topic_heatmap(df, df_topics_sp, prev_date, next_date, n, res=10):
 
     return df_plot
 
-def prepare_divergence_plot(df, alpha, prev_date, next_date, n, N1, N2, lim=1000, nb_top_pages=40, debug=False, make_plot=True):
+def prepare_divergence_plot(df, alpha, prev_date, next_date, n, lim=1000, nb_top_pages=40, debug=False, make_plot=True):
 
     if debug : print("Compute divergence")
     if alpha == 0:
         df_divs = RTD_0_sp(
-            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
+            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'),
+                      col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page',
+                      'n1', 'n2', 'n', 'topic'),
             prev_date,
-            next_date,
-            N1, N2).cache()
+            next_date).cache()
     elif np.isinf(alpha):
         df_divs = RTD_inf_sp(
-            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
+            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'),
+                      col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page',
+                      'n1', 'n2', 'n', 'topic'),
             prev_date,
             next_date).cache()
     else:
         df_divs = rank_turbulence_divergence_sp(
-            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'), col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page'),
+            df.select('page_id', col('rank_1').alias(f'{prev_date}_nn'), col('rank_2').alias(f'{next_date}_nn'),
+                      col('prev_rank_1').alias(prev_date), col('prev_rank_2').alias(next_date), 'page',
+                      'n1', 'n2', 'n', 'topic'),
             prev_date,
             next_date,
-            N1, N2,
             alpha=alpha).cache()
 
     if make_plot:
@@ -402,6 +419,8 @@ if __name__ == '__main__':
     parser.add_argument('--alpha',
                         type=float,
                         default=0.3)
+    parser.add_argument('--topic',
+                        action='store_true')
     parser.add_argument('--memory',
                         default=70,
                         type=int,
@@ -445,6 +464,7 @@ if __name__ == '__main__':
         df = extract_volume(dfs, high=True).cache()
         df = df.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
                        dfs_change_all.page_ids == df.page_id) \
+               .join(df_topics_sp.select('page_id', col('topic_specific_unique').alias('topic')), 'page_id')\
             .select('date', col('last_page_id').alias('page_id'), col('last_name').alias('page'), 'fractional_rank').cache()
 
         dates = ['2015-07', '2015-08', '2015-09', '2015-10', '2015-11', '2015-12']\
@@ -454,17 +474,40 @@ if __name__ == '__main__':
         prev_d = dates[:-1]
         next_d = dates[1:]
 
-        for p, n in tqdm(zip(prev_d, next_d)):
-            df_ranked, N1, N2, N = prepare_RTD_ranks(df.where(df.date.isin([p, n])),
-                                                   p,
-                                                   n,
-                                                   n=10**7)
-            df_ranked = df_ranked.join(df.select('page', 'page_id').distinct(), 'page_id')
-            df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**7), N1, N2, make_plot=False)
+        if args.topic:
 
-            df_plot_divs.append(df_divs)
+            with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
+                lines = f.read()
+            topics = lines.replace('\n', '').replace("'", '').split(',')
 
-        reduce(DataFrame.unionAll, df_plot_divs).write.parquet(os.path.join(plot_dir, 'RTD_all.parquet'))
+            for t in topics :
+
+                for p, n in tqdm(zip(prev_d, next_d)):
+                    df_ranked, N1, N2, N = prepare_RTD_ranks(df.where(df.date.isin([p, n]) ),
+                                                             p,
+                                                             n,
+                                                             n=10 ** 7)
+                    df_ranked = df_ranked.join(df.select('page', 'page_id').distinct(), 'page_id')
+                    df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10 ** 7), N1, N2,
+                                                      make_plot=False)
+
+                    df_plot_divs.append(df_divs)
+
+                reduce(DataFrame.unionAll, df_plot_divs).write.parquet(os.path.join(plot_dir, 'RTD_all.parquet'))
+
+        else :
+
+            for p, n in tqdm(zip(prev_d, next_d)):
+                df_ranked, N1, N2, N = prepare_RTD_ranks(df.where(df.date.isin([p, n])),
+                                                       p,
+                                                       n,
+                                                       n=10**7)
+                df_ranked = df_ranked.join(df.select('page', 'page_id').distinct(), 'page_id')
+                df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10**7), N1, N2, make_plot=False)
+
+                df_plot_divs.append(df_divs)
+
+            reduce(DataFrame.unionAll, df_plot_divs).write.parquet(os.path.join(plot_dir, 'RTD_all.parquet'))
 
     if args.mode == 'date':
 

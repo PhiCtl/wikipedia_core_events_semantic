@@ -13,31 +13,7 @@ from pages_groups_extraction import extract_volume
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 
 
-
-def rank_diversity(df, rank_type='rank'):
-    """
-    Compute rank diversity given rank_type ranking
-    rank_type can be any from 'rank', 'fract_rank', 'rank_range'
-    """
-    df_T = df.groupBy(rank_type).agg(count('*').alias('tot_possible'))
-
-    rank_diversity = df.join(df_T, on=rank_type) \
-        .groupBy(rank_type, 'tot_possible') \
-        .agg(countDistinct('page_id').alias('nb_pages')) \
-        .withColumn('rank_div', col('nb_pages') / col('tot_possible'))
-
-    return rank_diversity
-
-def rank_change_proba(df, rank_type='rank'):
-    # TODO not tried yet
-    T = df.select('date').distinct().count()
-    w = Window.partitionBy(rank_type).orderBy(asc('date'))
-    rank_change = df.withColumn('next_page_id', lead('page_id', 1).over(w)).where(~col('next_page_id').isNull())
-    rank_change = rank_change.withColumn('diff', 1 - when(col('page_id') == col('next_page_id'), 1).otherwise(0))
-    rank_change_proba = rank_change.groupBy(rank_type).agg((sum('diff') / T).alias('rank_change_proba'))
-    return rank_change_proba
-
-def rank_turbulence_divergence_pd(rks, d1, d2, N1, N2, alpha):
+def rank_turbulence_divergence_sp(rks, d1, d2, alpha):
     """
     Compute rank turbulence divergence between date d1 and d2 for pages in rks
     :param rks: dataframe with columns d1 and d2
@@ -47,43 +23,39 @@ def rank_turbulence_divergence_pd(rks, d1, d2, N1, N2, alpha):
     :param N2: number of elements at d2
     :param alpha: hyper parameter for divergence computation
     """
-    N = (alpha + 1) / alpha * (
-            ((1.0 / rks.loc[~rks[d1].isnull(), d1] ** alpha - 1 / (N1 + 0.5 * N2) ** alpha).abs() ** (1 / (alpha + 1))).sum()
-          + ((-1.0 / rks.loc[~rks[d2].isnull(), d2] ** alpha + 1 / (N2 + 0.5 * N1) ** alpha).abs() ** (1 / (alpha + 1))).sum())
+    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id' ,'page',
+                              'n1', 'n2', 'n', 'topic')
 
-    rks[f'div_{d2}'] = (alpha + 1) / (N * alpha) * ((1 / rks[d1 + '_nn'] ** alpha - 1 / rks[d2 + '_nn'] ** alpha).abs()) ** (
-                1 / (alpha + 1))
+    tmp_1 = computations.where(~col(d1).isNull())\
+                        .withColumn('1/d1**alpha_N', pow(1 / col(d1), alpha))\
+                        .withColumn('diff_N_1',
+                             pow(
+                                 abs(col('1/d1**alpha_N') - (1 / (col('n1') + 0.5 * col('n2'))) ** alpha),
+                             lit(1 / (alpha + 1))))
 
-def rank_turbulence_divergence_sp(rks, d1, d2, N1, N2, alpha):
-    """
-    Compute rank turbulence divergence between date d1 and d2 for pages in rks
-    :param rks: dataframe with columns d1 and d2
-    :param d1: string date 1 in format YYYY-MM
-    :param d2: string date 2 in format YYYY-MM
-    :param N1: number of elements at d1
-    :param N2: number of elements at d2
-    :param alpha: hyper parameter for divergence computation
-    """
-    computations = rks.select(d1, d2, d1 + '_nn', d2 + '_nn', 'page_id' ,'page')
-    tmp_1 = computations.where(~col(d1).isNull()).withColumn('1/d1**alpha_N', pow(lit(1) / col(d1), lit(alpha)))
-    tmp_2 = computations.where(~col(d2).isNull()).withColumn('1/d2**alpha_N', pow(lit(1) / col(d2), lit(alpha)))
-    tmp_1 = tmp_1.withColumn('diff_N_1',
-                             pow(abs(col('1/d1**alpha_N') - lit((1 / (N1 + 0.5 * N2)) ** alpha)), lit(1 / (alpha + 1))))
-    tmp_2 = tmp_2.withColumn('diff_N_2',
-                             pow(abs(col('1/d2**alpha_N') - lit((1 / (N2 + 0.5 * N1)) ** alpha)), lit(1 / (alpha + 1))))
-    N = (alpha + 1) / alpha * (tmp_1.select(sum('diff_N_1').alias('dn1')).collect()[0][0] +
-                               tmp_2.select(sum('diff_N_2').alias('dn2')).collect()[0][0])
+    tmp_2 = computations.where(~col(d2).isNull())\
+                        .withColumn('1/d2**alpha_N', pow(1 / col(d2), alpha))\
+                        .withColumn('diff_N_2',
+                            pow(
+                                abs(col('1/d2**alpha_N') - (1 / (col('n2') + 0.5 * col('n1'))) ** alpha),
+                                lit(1 / (alpha + 1))))
 
-    computations = computations.withColumn('1/d1**alpha', pow(lit(1) / col(d1 + '_nn'), lit(alpha)))
-    computations = computations.withColumn('1/d2**alpha', pow(lit(1) / col(d2 + '_nn'), lit(alpha)))
-    computations = computations.withColumn(f'div_{d2}',
-                                           pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), lit(1 / (alpha + 1))) * (
-                                                       alpha + 1) / (alpha * N))
+    Ns = tmp_1.groupBy('topic').agg(sum('diff_N_1').alias('dn1')) \
+        .join(tmp_2.groupBy('topic').agg(sum('diff_N_2').alias('dn2')), 'topic') \
+        .select('topic', ((col('dn1') + col('dn2')) * ((alpha + 1) / alpha)).alias('N'))
 
-    return computations.withColumn('date', lit(d2)).select(col(f'div_{d2}').alias('div'), 'date', 'page_id', 'page',
-                                                           col(f'{d1}_nn').alias('rank_1'), col(f'{d2}_nn').alias('rank_2'),
+    computations = computations.withColumn('1/d1**alpha', pow(1 / col(d1 + '_nn'), alpha))
+    computations = computations.withColumn('1/d2**alpha', pow(1 / col(d2 + '_nn'), alpha))
+
+    computations = computations.join(Ns, on='topics')\
+                               .withColumn(f'div',
+                                           pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), 1 / (alpha + 1))
+                                           * (alpha + 1) / (alpha * col('N')))
+
+    return computations.withColumn('date', lit(d2)).select('div', 'date', 'page_id', 'page','topic',
+                                                           col(f'{d1}_nn').alias('rank_1'),
+                                                           col(f'{d2}_nn').alias('rank_2'),
                                                            col(d1).alias('prev_rank_1'), col(d2).alias('prev_rank_2'))
-
 
 def RTD_0_sp(rks, d1, d2, N1, N2):
     """
@@ -133,35 +105,6 @@ def RTD_inf_sp(rks, d1, d2):
                                                            col(d1).alias('prev_rank_1'), col(d2).alias('prev_rank_2'))
 
 
-def augment_div(df, rg_rk, dates, df_ranks):
-    """
-    Augment divergence dataframe with other statistics
-    :param df: divergence dataframe
-    :param rg_rk: ranks bucket number (ie. 0, 1, etc...)
-    :param dates: selected dates for analysis in format YYYY-MM
-    :param df_ranks: ranks dataframe
-    """
-    div_dates = [f"div_{d}" for d in dates]
-
-    df_ranks_filt = df_ranks.where(df_ranks.rank_range == rg_rk).groupby('page').pivot('date').sum('rank').toPandas()
-
-    med_divs = df.set_index('page')[div_dates].mean(axis=1)
-    med_divs.name = 'avg_divs'
-    std_divs = (df.set_index('page'))[div_dates].std(axis=1)
-    std_divs.name = 'std_divs'
-    med_ranks = df_ranks_filt.set_index('page')[dates].mean(axis=1)
-    med_ranks.name = 'avg_ranks'
-    nb_null = df_ranks_filt.set_index('page')[dates].isnull().sum(axis=1)
-    nb_null.name = 'nb_null'
-    std_ranks = df_ranks_filt.set_index('page')[dates].std(axis=1)
-    std_ranks.name = 'std_ranks'
-
-    return reduce(merge_index, [med_divs, std_divs, med_ranks, std_ranks, nb_null])
-
-def RTD_alpha_0(rks, d1, d2, N1, N2):
-    N = (np.log(rks.loc[~rks[d1].isnull(), d1] / (N1 + 0.5 * N2)).abs()).sum() + (
-        np.log(rks.loc[~rks[d2].isnull(), d2] / (N2 + 0.5 * N1)).abs()).sum()
-    rks[f'div_{d2}'] = 1 / N * np.log(rks[d1 + '_nn'] / rks[d2 + '_nn']).abs()
 
 if __name__ == '__main__':
 
@@ -177,7 +120,7 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    save_path = "/scratch/descourt/processed_data_050923"
+    save_path = "/scratch/descourt/processed_data/en"
     os.makedirs(save_path, exist_ok=True)
 
     # path
