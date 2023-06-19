@@ -220,7 +220,7 @@ def prepare_RTD_ranks(df, d1, d2, n=int(1e8), df_topics=None):
     ns = N1s.join(N2s, on='topic') \
         .join(Ns, on='topic') \
         .select('n1', 'n2', 'n', (col('n1') + 0.5 * (col('n2') - col('n'))).alias('last_rk1'),
-                (col('n2') + 0.5 * (col('n1') - col('n'))).alias('last_rk2'))
+                (col('n2') + 0.5 * (col('n1') - col('n'))).alias('last_rk2'), 'topic')
 
     df_comparison = df_comparison.withColumn(d1 + '_nn', col(d1)).withColumn(d2 + '_nn', col(d2))
 
