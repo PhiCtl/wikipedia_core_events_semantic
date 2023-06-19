@@ -211,9 +211,9 @@ def prepare_RTD_ranks(df, d1, d2, n=int(1e8), df_topics=None):
 
     # Take non null per topic
     w = Window.partitionBy('topic')
-    df_comparison = df_piv.select('page_id', col(d1), col(d2),
-                                  when(col(d2).isNull(), True).otherwise(False).over(w).alias('d2isNull'),
-                                  when(col(d1).isNull(), True).otherwise(False).over(w).alias('d1isNull')) \
+    df_comparison = df_piv.select('page_id', col(d1), col(d2))\
+                          .withColumn('d2isNull', when(col(d2).isNull(), True).otherwise(False).over(w)) \
+                          .withColumn('d1isNull', when(col(d1).isNull(), True).otherwise(False).over(w)) \
         .where(~col('d2isNull') | ~col('d1isNull')).cache()
 
     N1s = df_comparison.groupBy('topic').agg(sum(when(~col('d1isNull'), 1).otherwise(0)).alias('n1'))
@@ -476,7 +476,7 @@ if __name__ == '__main__':
         next_d = dates[1:]
 
         for p, n in tqdm(zip(prev_d, next_d)):
-            df_ranked, N1, N2, N = prepare_RTD_ranks(df.where(df.date.isin([p, n])),
+            df_ranked = prepare_RTD_ranks(df.where(df.date.isin([p, n])),
                                                      p,
                                                      n,
                                                      n=10 ** 7,
