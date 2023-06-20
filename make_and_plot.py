@@ -481,6 +481,7 @@ if __name__ == '__main__':
                                                                                    col('topics_specific_unique').alias(
                                                                                        'topic')).distinct())
             df_ranked = df_ranked.join(df.select('page', 'page_id').distinct(), 'page_id')
+            print(df_ranked.columns)
             df_divs = prepare_divergence_plot(df_ranked, args.alpha, p, n, int(10 ** 7), make_plot=False)
 
             df_plot_divs.append(df_divs)
