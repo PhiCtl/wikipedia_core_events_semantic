@@ -47,7 +47,7 @@ def rank_turbulence_divergence_sp(rks, d1, d2, alpha):
     computations = computations.withColumn('1/d1**alpha', pow(1 / col(d1 + '_nn'), alpha))
     computations = computations.withColumn('1/d2**alpha', pow(1 / col(d2 + '_nn'), alpha))
 
-    computations = computations.join(Ns, on='topics')\
+    computations = computations.join(Ns, on='topic')\
                                .withColumn(f'div',
                                            pow(abs(col('1/d1**alpha') - col('1/d2**alpha')), 1 / (alpha + 1))
                                            * (alpha + 1) / (alpha * col('N')))
