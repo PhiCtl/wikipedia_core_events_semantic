@@ -129,7 +129,7 @@ def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bs
     find_topic_specific_udf = udf(find_topic_specific)
 
     # Adapt timestamp to our custom timestamp
-    if 'creation_date' in df_meta_filt.columns:
+    if 'page_creation_timestamp' in df_meta_filt.columns:
         df_meta_filt = df_meta_filt.withColumn('creation_date', concat(split(col('page_creation_timestamp'), '-')[0],
                                                                        lit('-'),
                                                                        split(col('page_creation_timestamp'), '-')[1])) \
@@ -159,4 +159,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_topics_2022-09.parquet', project='en')
+    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet', project='fr')
