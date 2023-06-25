@@ -23,6 +23,50 @@ from src.rank_turbulence_divergence import rank_turbulence_divergence_sp, RTD_0_
 from src.pages_groups_extraction import extract_volume
 
 
+def make_cumulative_plot(df, hinge_point, path=None):
+    fig = go.Figure()
+    fig.add_traces(
+        go.Scatter(
+            x=[hinge_point[1], hinge_point[1]],
+            y=[0, 100],
+            mode="lines",
+            line=go.scatter.Line(color="green"),
+            name=f"{np.round(hinge_point[0] * 100) / 100} % of views")
+    )
+    fig.add_traces(
+        go.Scatter(
+            y=[hinge_point[0], hinge_point[0]],
+            x=[0, 100],
+            mode="lines",
+            line=go.scatter.Line(color="red"),
+            name=f"{np.round(hinge_point[1] * 100) / 100} % of ranks")
+    )
+    fig.add_traces(
+        go.Scatter(
+            y=df['perc_views'].values,
+            x=df['perc_rank'].values,
+            mode="lines",
+            line=go.scatter.Line(color="blue"),
+            name=f"Cumulated views",
+            error_y=dict(
+                type='data',  # value of error bar given in data coordinates
+                array=df['error_views'].values,
+                visible=True)
+        ))
+    fig.update_layout(
+        xaxis_title=dict(text='Cumulated ranks in %', font=dict(size=20)),
+        yaxis_title=dict(text='Cumulated views in %', font=dict(size=20)),
+        height=600,
+        width=800,
+        legend=dict(font=dict(size=20), title=None),
+        yaxis=dict(tickfont=dict(size=20)),
+        xaxis=dict(tickfont=dict(size=20)), )
+
+    fig.show()
+    if path is not None:
+        fig.write_image(path)
+
+
 def set_up_mapping(topics=None, grouped=True):
     """
     Create custom topic - color mapping for plots

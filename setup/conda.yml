@@ -1,0 +1,20 @@
+name: wiki_sem
+channels:
+  - defaults
+dependencies:
+  - python=3.6
+  - absl-py
+  - pyparsing
+  - pip
+  - pip:
+    - pandas
+    - matplotlib
+    - plotly
+    - pyspark
+    - scipy
+    - more-itertools
+    - scikit-learn
+    - seaborn
+    - tqdm
+    - statsmodels
+    - kaleido
