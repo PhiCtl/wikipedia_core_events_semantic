@@ -9,7 +9,10 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 from pyspark.ml.feature import VectorAssembler, StandardScaler
 
-from data_aggregation import get_target_id
+
+import sys
+sys.path.append('../')
+from src.data_aggregation import get_target_id
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 

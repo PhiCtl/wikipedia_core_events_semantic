@@ -12,8 +12,10 @@ from pyspark.sql.functions import *
 
 from tqdm import tqdm
 from functools import reduce
+import sys
+sys.path.append('../')
 
-from redirects_helpers import *
+from src.redirects_helpers import *
 
 
 def setup_data(years, months, spark_session, path="/scratch/descourt/raw_data/pageviews"):
