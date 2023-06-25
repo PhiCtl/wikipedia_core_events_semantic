@@ -112,6 +112,9 @@ def parse_Wikirank_scores(path_in='/scratch/descourt/metadata/quality/wikirank_s
 
 def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet',
                    project='en'):
+    """
+    Parse Akhil's metadata
+    """
     df_meta = spark.read.parquet(path_in)
     path_out = path_in.split('.')[0] + '_' + project + '.parquet'
     df_meta_filt = df_meta.where(f'wiki_db = "{project}wiki"')
