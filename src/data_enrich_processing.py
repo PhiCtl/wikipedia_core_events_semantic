@@ -8,7 +8,6 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 from pyspark.ml.feature import VectorAssembler, StandardScaler
 
-
 import sys
 sys.path.append('../')
 from src.data_aggregation import get_target_id
@@ -40,10 +39,11 @@ def parse_topics(path_in="/scratch/descourt/metadata/topics/topic_en/topics_enwi
     df_topics = df_topics.explode('topics')
     df_topics.to_parquet(path_out, engine='fastparquet')
 
-def parse_embeddings(path_in="/scratch/descourt/metadata/semantic_embeddings/fr/article-description-embeddings_frwiki-20210401-fasttext.pickle",
-                     path_out='/scratch/descourt/metadata/semantic_embeddings/fr/embeddings-fr-20210401.parquet',
-                     debug=True):
 
+def parse_embeddings(
+        path_in="/scratch/descourt/metadata/semantic_embeddings/fr/article-description-embeddings_frwiki-20210401-fasttext.pickle",
+        path_out='/scratch/descourt/metadata/semantic_embeddings/fr/embeddings-fr-20210401.parquet',
+        debug=True):
     """
     Parse semantic embeddings and normalize the embeddings vectors
     return parquet file
@@ -72,9 +72,9 @@ def parse_embeddings(path_in="/scratch/descourt/metadata/semantic_embeddings/fr/
     df_embeds_vec = standardScaler.fit(df_embeds_vec).transform(df_embeds_vec).select('page_id', 'embed')
     df_embeds_vec.write.parquet(path_out.split('.')[0] + "-norm.parquet")
 
+
 def parse_ORES_scores(path_scores="/scratch/descourt/metadata/quality/ORES_quality_en_March21.json.gz",
                       save_interm=True):
-
     df_quality = spark.read.json(path_scores)
     rev_ids = [str(i['revision_id']) for i in df_quality.select('revision_id').distinct().collect()]
 
@@ -89,11 +89,11 @@ def parse_ORES_scores(path_scores="/scratch/descourt/metadata/quality/ORES_quali
     df_quality = df_quality.join(df_matching, 'revision_id')
     df_quality.write.parquet(path_scores.split('.')[0] + '.parquet')
 
+
 def parse_Wikirank_scores(path_in='/scratch/descourt/metadata/quality/wikirank_scores_201807.tsv.zip',
                           project='en'):
-
     path_out = path_in.split('.')[0] + f'_{project}.parquet'
-    for chunk in pd.read_csv(path_in, sep='\t', chunksize=10**6):
+    for chunk in pd.read_csv(path_in, sep='\t', chunksize=10 ** 6):
 
         if chunk.loc[chunk['language'] == project].shape[0] >= 1:
 
@@ -109,9 +109,9 @@ def parse_Wikirank_scores(path_in='/scratch/descourt/metadata/quality/wikirank_s
             else:
                 df.to_parquet(path_out, engine='fastparquet', index=False, append=True)
 
+
 def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet',
                    project='en'):
-
     df_meta = spark.read.parquet(path_in)
     path_out = path_in.split('.')[0] + '_' + project + '.parquet'
     df_meta_filt = df_meta.where(f'wiki_db = "{project}wiki"')
@@ -122,14 +122,15 @@ def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bs
             return topics[0]
         else:
             return not_starred[0]
+
     find_topic_specific_udf = udf(find_topic_specific)
 
     # Adapt timestamp to our custom timestamp
     if 'creation_date' in df_meta_filt.columns:
         df_meta_filt = df_meta_filt.withColumn('creation_date', concat(split(col('page_creation_timestamp'), '-')[0],
                                                                        lit('-'),
-                                                                       split(col('page_creation_timestamp'), '-')[1]))\
-                                   .drop('creation_year', 'creation_month')
+                                                                       split(col('page_creation_timestamp'), '-')[1])) \
+            .drop('creation_year', 'creation_month')
 
     if 'topic' in df_meta_filt.columns:
         df_meta_filt = df_meta_filt.where('score >= "0.5"') \
