@@ -155,4 +155,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_topics_2022-09.parquet', project='fr')
+    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_topics_2022-09.parquet', project='en')
