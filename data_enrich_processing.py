@@ -1,7 +1,6 @@
 import pandas as pd
 from ast import literal_eval
 import pickle
-import numpy as np
 import os
 
 import pyspark
@@ -113,6 +112,15 @@ def parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bs
     df_meta = spark.read.parquet(path_in)
     path_out = path_in.split('.')[0] + '_' + project + '.parquet'
     df_meta_filt = df_meta.where(f'wiki_db = "{project}wiki"')
+
+    def find_topic_specific(topics):
+        not_starred = [t for t in topics if not '*' in t]
+        if len(not_starred) == 0:
+            return topics[0]
+        else:
+            return not_starred[0]
+    find_topic_specific_udf = udf(find_topic_specific)
+
     # Adapt timestamp to our custom timestamp
     if 'creation_date' in df_meta_filt.columns:
         df_meta_filt = df_meta_filt.withColumn('creation_date', concat(split(col('page_creation_timestamp'), '-')[0],
@@ -136,7 +144,7 @@ if __name__ == '__main__':
         ('spark.driver.memory', '70G'),
         ('spark.executor.memory', '70G'),
         ('spark.driver.maxResultSize', '0'),
-        ('spark.executor.cores', '5'),
+        ('spark.executor.cores', '3'),
         ('spark.local.dir', '/scratch/descourt/spark')
     ])
     # create the session
@@ -144,4 +152,4 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
 
-    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet', project='fr')
+    parse_metadata(path_in='/scratch/descourt/metadata/akhils_data/wiki_nodes_topics_2022-09.parquet', project='fr')
