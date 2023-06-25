@@ -7,8 +7,10 @@ import pyspark
 from pyspark.sql import *
 from pyspark.sql.functions import *
 
-from ranking_helpers import merge_index
-from pages_groups_extraction import extract_volume
+import sys
+sys.path.append('../')
+from src.ranking_helpers import merge_index
+from src.pages_groups_extraction import extract_volume
 
 os.environ["JAVA_HOME"] = "/lib/jvm/java-11-openjdk-amd64"
 

@@ -17,8 +17,12 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 from pyspark import SparkContext
 
-from rank_turbulence_divergence import rank_turbulence_divergence_sp, RTD_0_sp, RTD_inf_sp
-from pages_groups_extraction import extract_volume
+import sys
+sys.path.append('../')
+
+
+from src.rank_turbulence_divergence import rank_turbulence_divergence_sp, RTD_0_sp, RTD_inf_sp
+from src.pages_groups_extraction import extract_volume
 
 
 def set_up_mapping(topics=None, grouped=True):
