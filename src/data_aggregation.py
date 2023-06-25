@@ -17,7 +17,6 @@ sys.path.append('../')
 
 from src.redirects_helpers import *
 
-
 def setup_data(years, months, spark_session, path="/scratch/descourt/raw_data/pageviews"):
     """
     Load and prepare wikipedia projects pageviews data for given year and month
@@ -64,6 +63,8 @@ def filter_data(df, projects, dates):
         .filter(df.date.isin(dates)) \
         .select(col('page').alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type',
                 split('project',  '\.')[0].alias('project') )
+
+    # Filter articles namespace
     if 'en' in projects and len(projects) == 1:
         df_filt = df_filt.filter(~df_filt.page.contains('User:') & \
                                  ~df_filt.page.contains('Wikipedia:') & \
@@ -103,6 +104,7 @@ def filter_data(df, projects, dates):
                                  ~df_filt.page.isin(specials_to_filt) \
                                  & (df_filt.counts >= 1))
         return df_filt
+    # TODO too coarse, find another way !
     else :
         df_filt = df_filt.where(~df_filt.page.contains(':') & ~df_filt.page.isin(specials_to_filt)\
                                 & (df_filt.counts >= 1))
@@ -110,7 +112,7 @@ def filter_data(df, projects, dates):
     return df_filt
 
 
-def match_ids(df, latest_date, projects):
+def match_ids(df, latest_date, projects, raw_path=f'/scratch/descourt/raw_data/pageviews'):
     """
     Match page ids from latest date dataframe with pageids
     Especially for data before 2015-12 because page ids weren't matched
@@ -119,7 +121,7 @@ def match_ids(df, latest_date, projects):
     [y, m] = latest_date.split('-')
 
     # Select all available pages and their page ids (raw) for project of interest
-    df_latest = setup_data([y], [m], path=f'/scratch/descourt/raw_data/pageviews', spark_session=spark)  # Download all data
+    df_latest = setup_data([y], [m], path=raw_path, spark_session=spark)  # Download all data
 
     # Select columns of interest and filter project
     df_latest = df_latest.where((df_latest.project.isin([f"{p}.wikipedia" for p in projects]))\
@@ -213,9 +215,20 @@ def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
 
 
 def automated_main():
-    save_path = "/scratch/descourt/processed_data/fr"
+
+    """Process single edition of Wikipedia pageviews for July 2015-March 2023 period"""
+
+    parser = argparse.ArgumentParser(
+        description='Wikipedia monthly pageviews dumps processing from July 2015 up to March 2023')
+    parser.add_argument('--project',
+                        type=str,
+                        default='en')
+    args = parser.parse_args()
+    project = args.project
+
+    save_path = f"/scratch/descourt/processed_data/{project}"
     os.makedirs(save_path, exist_ok=True)
-    save_file = "pageviews_fr_2015-2023.parquet"
+    save_file = f"pageviews_{project}_2015-2023.parquet"
 
     # Process data
     for args_m, args_y in zip([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -232,11 +245,11 @@ def automated_main():
 
         # For data < 2015-12, page ids are missing, so we match them with closest date dataset page ids
         if '2015' in args_y:
-            dfs = match_ids(dfs, '2015-12', projects=['fr'])
+            dfs = match_ids(dfs, '2015-12', projects=[project])
 
-        df_filt = filter_data(dfs, ['fr'], dates=dates)
+        df_filt = filter_data(dfs, [project], dates=dates)
         df_agg = aggregate_data(df_filt)
-        df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_{'-'.join(['fr'])}_{'_'.join(args_y)}.parquet"))
+        df_agg.write.parquet(os.path.join(save_path, f"pageviews_agg_{'-'.join([project])}_{'_'.join(args_y)}.parquet"))
 
     # Read all again and save
     dfs_path = [os.path.join(save_path, d) for d in os.listdir(save_path)]
@@ -244,7 +257,7 @@ def automated_main():
     reduce(DataFrame.unionAll, dfs).write.parquet(os.path.join(save_path, save_file))
 
 
-def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
+def match_missing_ids(save_interm=True):
 
     """
     Further matching is needed between redirects and target pages in some cases
@@ -253,83 +266,94 @@ def match_missing_ids(dfs=None, df_topics_sp=None, save_interm=True):
     Either this id is a page which didn't exist at the time the topic-page dataset was extracted,
     either this is a redirect id
 
+    TODO We didn't take into account the fact that pages could be moved here, and it has to be corrected
+
     We then query Wikipedia's API to match the redirect page id with the target page id
     """
 
     parser = argparse.ArgumentParser(
         description='Wikipedia missing pageids downloading')
-    parser.add_argument('--year',
-                        type=str,
-                        default='2020',
-                        help='Year to download')
+
     parser.add_argument('--project',
                         type=str,
-                        default='en')
+                        default='en',
+                        choices=['en', 'fr'])
     args = parser.parse_args()
-    year = args.year
     project = args.project
 
     print('Load data')
-    # TODO make below project specific -> move processed data file from to _en because for french it has _fr
-    dfs = spark.read.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023.parquet")
-    # TODO remove years
-    dfs_2019 = dfs.where(dfs.date.contains('2019'))
-    # TODO Make project specific
-    if df_topics_sp is None:
-        df_topics_sp = spark.read.parquet('/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet')
+    dfs = spark.read.parquet(f"/scratch/descourt/processed_data/{project}/pageviews_{project}_2015-2023.parquet")
+    if project == 'en':
+        df_topics_sp = spark.read.parquet('/scratch/descourt/metadata/topics/topic_en/topics-enwiki-20230320-parsed.parquet')\
+            .select('page_id', col('topics_specific_unique').alias('topic')).distinct().cache()
+    else:
+        # TODO not optimal for other editions as we have data points up to March 23
+        df_topics_sp = spark.read.parquet(f'/scratch/descourt/metadata/akhils_data/wiki_nodes_topics_2022-09_{project}.parquet')
 
-    # print('Merge with topics and retrieve which page_ids do not match')
-    # df_unmatched = dfs_2019.where((dfs_2019.page_id != 'null') & col('page_id').isNotNull()) \
-    #     .join(df_topics_sp.select('page_id', 'topics_unique').distinct(), 'page_id', 'left')\
-    #     .where(col('topics_unique').isNull()).select('page_id').distinct()
-    # unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
-    #
-    # print('Match the unmatched ids with their target page id')
-    # # TODO make proejct specific
-    # mappings = get_target_id(unmatched_ids, project='en')
-    # if save_interm:
-    #     with open(f"/scratch/descourt/topics/topic_en/mappings_ids_corrected_2019.pickle", "wb") as handle:
-    #         pickle.dump(mappings, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # mappings_spark = [(k, v) for k, v in mappings.items()]
-    with open(f"/scratch/descourt/metadata/topics/topic_en/mappings_ids_corrected_2019.pickle", "rb") as handle:
-        mappings = pickle.load(handle)
+    print('Merge with topics and retrieve which page_ids do not match')
+    df_unmatched = dfs.where((dfs.page_id != 'null') & col('page_id').isNotNull()) \
+        .join(df_topics_sp.select('page_id', 'topic').distinct(), 'page_id', 'left')\
+        .where(col('topic').isNull()).select('page_id').distinct()
+    unmatched_ids = [str(p['page_id']) for p in df_unmatched.select('page_id').collect()]
+
+    print('Match the unmatched ids with their target page id')
+    mappings = get_target_id(unmatched_ids, project=project)
 
     mappings_spark = [(k, v) for k, v in mappings.items()]
     df_matching = spark.createDataFrame(data=mappings_spark, schema=["redirect", "target"])
     if save_interm:
-        df_matching.write.parquet(f"/scratch/descourt/metadata/topics/topic_en/df_missing_redirects_2019.parquet")
+        df_matching.write.parquet(f"/scratch/descourt/metadata/redirect_matching/df_missing_redirects_{project}.parquet")
 
-    dfs_2019 = dfs_2019.join(df_matching, dfs_2019.page_id == df_matching.redirect, 'left')
+    dfs = dfs.join(df_matching, dfs.page_id == df_matching.redirect, 'left')
     # The left unmatched page_ids correspond in fact already to target pages,
     # so their own id could not be matched and we replace it with original id
-    dfs_2019 = dfs_2019.withColumn('page_id', coalesce('target', 'page_id'))
+    dfs = dfs.withColumn('page_id', coalesce('target', 'page_id'))
 
     print("Recompute the tot view counts")
     w = Window.partitionBy('date', 'page_id').orderBy(desc('tot_count_views'))
-    dfs_2019 = dfs_2019.withColumn('page', first('page').over(w))
-    dfs_2019 = dfs_2019.groupBy('date', 'page_id', 'page').agg(
+    dfs = dfs.withColumn('page', first('page').over(w))
+    dfs = dfs.groupBy('date', 'page_id', 'page').agg(
         sum('tot_count_views').alias('tot_count_views'))
 
     print("Recompute ordinal and fractional ranks")
     window = Window.partitionBy('date').orderBy(col("tot_count_views").desc())
-    dfs_2019 = dfs_2019.withColumn("rank", row_number().over(window))
-    df_fract = dfs_2019.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
-    dfs_2019 = dfs_2019.join(df_fract, on=['date', 'tot_count_views'])
+    dfs = dfs.withColumn("rank", row_number().over(window))
+    df_fract = fs.groupBy('date', 'tot_count_views').agg(avg('rank').alias('fractional_rank'))
+    dfs = dfs.join(df_fract, on=['date', 'tot_count_views'])
 
     print("Write to file")
-    dfs = dfs.where(~dfs.date.contains('2019')).union(dfs_2019)
-    # TODO make project specific
-    dfs.write.parquet("/scratch/descourt/processed_data/en/pageviews_en_2015-2023_matched.parquet")
+    dfs.write.parquet(f"/scratch/descourt/processed_data/{project}/pageviews_{project}_2015-2023_matched.parquet")
 
     print("Done")
 
 def match_over_months():
     """
-    Match page ids and names over months so as to keep track of articles over time
+    Match page ids over months based on names so as to keep track of articles over time
+    It enables correction of some page moves by article's name and page id tracking to a certain extent
+    Indeed, pages which are not viewed during a given month are not kept in our dataset, hence appear as missing
+    and might pop up again the following month
+
+    Note that it represents a very tiny fraction of the data
     """
 
-    dfs = spark.read.parquet("/scratch/descourt/processed_data/fr/pageviews_fr_2015-2023.parquet")
-    dfs = dfs.withColumn('date', to_date(col('date'),'yyyy-MM')).where(col('date') <= to_date(lit('2022-11'), 'yyyy-MM')).cache()
+    parser = argparse.ArgumentParser(
+        description='Wikipedia page ids and page name matching over time')
+
+    parser.add_argument('--project',
+                        type=str,
+                        default='en',
+                        choices=['en', 'fr'])
+    parser.add_argument('--date',
+                        type=str,
+                        default='2023-03',
+                        help='date up to which we want to track articles')
+    args = parser.parse_args()
+    project = args.project
+    date = args.date
+
+    # Select data up to date
+    dfs = spark.read.parquet(f"/scratch/descourt/processed_data/{project}/pageviews_{project}_2015-2023.parquet")
+    dfs = dfs.withColumn('date', to_date(col('date'),'yyyy-MM')).where(col('date') <= to_date(lit(date), 'yyyy-MM')).cache()
 
     w_asc = Window.partitionBy('page_id').orderBy(asc(col('date')))
     w_desc = Window.partitionBy('page_id').orderBy(desc(col('date')))
@@ -341,6 +365,10 @@ def match_over_months():
                     .distinct().cache()
 
     n, i = 10, 1
+    # Retrieve for each article ever seen in the entire Wikipedia edition up to "date"
+    # 1. its first name, corresponding page id and the first date at which it appeared in the volume
+    # 2. its last name, corresponding page id and the last date at which it appeared in the volume
+    # Match on last name if first name at following date is similar
     while n > 0 and i <= 10:
         print(f"{i} - {n}")
         dfs_change = dfs_change.alias('a') \
@@ -358,7 +386,16 @@ def match_over_months():
         i += 1
 
     print(n)
-    dfs_change.write.parquet("/scratch/descourt/processed_data/df/pageviews_fr_articles_ev_nov22.parquet")
+    w = Window.partitionBy('last_name', 'last_date').orderBy(desc('first_date'))
+    w_asc = Window.partitionBy('last_name', 'last_date').orderBy(asc('first_date'))
+
+    dfs_change_filt = dfs_change.select('last_name', 'last_date',
+                                        first('page_id_0').over(w).alias('last_page_id'),
+                                        first('first_date').over(w_asc).alias('first_date'),
+                                        explode(array(*['page_id_0', 'page_id_1', 'page_id_2', 'page_id_3'])).alias('page_ids')) \
+        .dropna(subset=['page_ids']) \
+        .dropDuplicates(['last_page_id', 'last_name', 'last_date', 'page_ids']).cache()
+    dfs_change_filt.write.parquet(f"/scratch/descourt/processed_data/{project}/pageviews_{project}_articles_ev_{date}.parquet")
 
 
 if __name__ == '__main__':
@@ -374,4 +411,8 @@ if __name__ == '__main__':
     # create the context
     sc = spark.sparkContext
     sc.setLogLevel('ERROR')
+
+    # TODO change line below
     match_over_months()
+    # match_missing_ids(False)
+    # automated_main()
