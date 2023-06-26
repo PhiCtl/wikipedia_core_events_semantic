@@ -1,6 +1,5 @@
 # A longitudinal characterization of Wikipedia's core and tail
 
-[TOC]
 
 ## Set-up
 
@@ -46,7 +45,7 @@ All commands have to be run in the `src` folder.
 
 The above processing is available for both English and French editions.  All processed data can already be found under 
 
-```
+```bash
 ├── processed_data
 │   ├── en
 │   	├── pageviews_en_2015-2023.parquet # Processing and redirect matching were already performed here
