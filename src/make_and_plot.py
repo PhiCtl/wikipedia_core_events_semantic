@@ -95,7 +95,6 @@ def set_up_mapping(topics=None, grouped=True):
         with open("colors.txt", 'r') as f:
             lines = f.read()
         colors = lines.replace('\n', '').replace("'", '').split(',')
-        np.random.shuffle(colors)
 
         color_mapping.update({t : c for t, c in zip(topics, colors)})
 
