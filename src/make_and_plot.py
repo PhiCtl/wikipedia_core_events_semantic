@@ -76,7 +76,7 @@ def set_up_mapping(topics=None, grouped=True):
     """
 
     if topics is None:
-        with open("wikipedia_core_events_semantic/topics_list.txt", 'r') as f:
+        with open("topics_list.txt", 'r') as f:
             lines = f.read()
         topics = lines.replace('\n', '').replace("'", '').split(',')
     color_mapping = {}
@@ -92,7 +92,7 @@ def set_up_mapping(topics=None, grouped=True):
         color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], cool(np.arange(0,cool.N)))})
 
     else:
-        with open("wikipedia_core_events_semantic/colors.txt", 'r') as f:
+        with open("colors.txt", 'r') as f:
             lines = f.read()
         colors = lines.replace('\n', '').replace("'", '').split(',')
         np.random.shuffle(colors)
