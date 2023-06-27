@@ -74,9 +74,8 @@ def set_up_mapping(topics=None, grouped=True):
     :param grouped: boolean, if true, then group topics color by category (eg. Stem)
     :return dictionnary
     """
-
     if topics is None:
-        with open("topics_list.txt", 'r') as f:
+        with open("../src/topics_list.txt", 'r') as f:
             lines = f.read()
         topics = lines.replace('\n', '').replace("'", '').split(',')
     color_mapping = {}
@@ -92,7 +91,7 @@ def set_up_mapping(topics=None, grouped=True):
         color_mapping.update({t: c for t, c in zip([t for t in topics if 'stem' in t], cool(np.arange(0,cool.N)))})
 
     else:
-        with open("colors.txt", 'r') as f:
+        with open("../src/colors.txt", 'r') as f:
             lines = f.read()
         colors = lines.replace('\n', '').replace("'", '').split(',')
         np.random.shuffle(colors)
