@@ -407,7 +407,7 @@ if __name__ == '__main__':
                                                          next_date=n, n=int(10**8), N1=N1, N2=N2, make_plot=True)
 
             df_plot_divs.append(df_div_pd)
-            df_divs_sp.append(df_divs)
+            df_divs_sp.append(df_divs.withColumn('alpha', lit(alpha)))
 
         pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_alphas.csv.gzip'), compression='gzip')
         reduce(DataFrame.unionAll, df_divs_sp).write.parquet(os.path.join(plot_dir, 'RTD_alphas.parquet'))
