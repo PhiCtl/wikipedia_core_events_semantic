@@ -401,13 +401,17 @@ if __name__ == '__main__':
         # Retrieve page titles
         df_ranked = df_ranked.join(dfs.select('page', 'page_id').distinct(), 'page_id').cache()
 
+        df_divs_sp = []
+
         for alpha in tqdm(alphas):
             df_div_pd, df_divs = prepare_divergence_plot(df_ranked, alpha=alpha, prev_date=p,
                                                          next_date=n, n=int(10**8), N1=N1, N2=N2, make_plot=True)
 
             df_plot_divs.append(df_div_pd)
+            df_divs_sp.append(df_divs)
 
         pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_alphas.csv.gzip'), compression='gzip')
+        reduce(DataFrame.unionAll, df_divs_sp).write.parquet(os.path.join(plot_dir, 'RTD_alphas.parquet'))
 
     print('Done')
 
