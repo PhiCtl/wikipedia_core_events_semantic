@@ -386,8 +386,8 @@ if __name__ == '__main__':
         # Alphas
         alphas = [0, 0.3, np.inf] # TODO put back to full range for animations !
         # Dates to compare
-        p = '2020-12'
-        n = '2021-01'
+        p = '2020-02'
+        n = '2021-03'
 
         # Match page ids to avoid pages popping up
         dfs = dfs.join(dfs_change_all.select('last_page_id', 'page_ids', 'last_name'),
@@ -410,7 +410,7 @@ if __name__ == '__main__':
             df_divs_sp.append(df_divs.withColumn('alpha', lit(alpha)))
 
         pd.concat(df_plot_divs).to_csv(os.path.join(plot_dir, 'divs_alphas.csv.gzip'), compression='gzip')
-        reduce(DataFrame.unionAll, df_divs_sp).write.parquet(os.path.join(plot_dir, 'RTD_alphas.parquet'))
+        reduce(DataFrame.unionAll, df_divs_sp).write.parquet(os.path.join(plot_dir, 'RTD_alphas_covid.parquet'))
 
     print('Done')
 
