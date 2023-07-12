@@ -57,7 +57,7 @@ def start_threads(num_threads, save_path):
 def main():
 
     parser = argparse.ArgumentParser(
-        description='Wikipedia pageviews downloading'
+        description='Wikipedia clickstream downloading'
     )
 
     parser.add_argument('--nb_threads',
