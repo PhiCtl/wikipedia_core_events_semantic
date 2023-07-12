@@ -103,7 +103,7 @@ def main():
                     f"https://dumps.wikimedia.org/other/pageview_complete/monthly/{year}/{year}-{month}/pageviews-{year}{month}-user.bz2")
             else :
                 urls.append(
-                    f"https://dumps.wikimedia.org/other/clickstream/{year}-{month}/clickstream-{args.project}wiki-{year}{month}.tsv.gz")
+                    f"https://dumps.wikimedia.org/other/clickstream/{year}-{month}/clickstream-{args.project}wiki-{year}-{month}.tsv.gz")
 
     global q
 
