@@ -78,10 +78,19 @@ def main():
                         help='save path',
                         type=str,
                         default='/scratch/descourt/pageviews')
+    parser.add_argument('--dtype',
+                        help='data type, either pageviews or clickstream data',
+                        type=str,
+                        choices=['pageviews', 'clickstream'],
+                        default='pageviews')
+    parser.add_argument('--project',
+                        help='Project to download for clickstream data',
+                        type=str,
+                        default='en')
 
     args = parser.parse_args()
-
     os.makedirs(args.sp, exist_ok=True)
+    pageviews = (args.dtype == 'pageviews')
 
     urls = []
     for year in args.y:
@@ -89,8 +98,12 @@ def main():
             month = str(m)
             if len(str(month)) < 2:
                 month = "0" + month
-            urls.append(
-                f"https://dumps.wikimedia.org/other/pageview_complete/monthly/{year}/{year}-{month}/pageviews-{year}{month}-user.bz2")
+            if pageviews:
+                urls.append(
+                    f"https://dumps.wikimedia.org/other/pageview_complete/monthly/{year}/{year}-{month}/pageviews-{year}{month}-user.bz2")
+            else :
+                urls.append(
+                    f"https://dumps.wikimedia.org/other/clickstream/{year}-{month}/clickstream-{args.project}wiki-{year}{month}.tsv.gz")
 
     global q
 
