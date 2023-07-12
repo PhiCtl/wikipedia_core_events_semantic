@@ -151,6 +151,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    os.makedirs(args.sp, exist_ok=True)
+
     make_links_dataset(ys=args.y, ms=args.m, spark_session=spark,
                        path=args.path, ref_path=args.ref_path, save_path=args.save_path)
 
