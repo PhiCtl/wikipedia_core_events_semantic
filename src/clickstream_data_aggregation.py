@@ -95,7 +95,7 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
     df_ref = df_ref.union(df_compl.select('page', 'page_id'))
 
     # Download data
-    dfs = setup_data(ys, ms, spark_session, path)
+    dfs = setup_data(ys, months, spark_session, path)
     df_clickstream = aggregate(dfs, df_ref, df_volumes).cache()
     df_clickstream.write.parquet(os.path.join(save_path, 'clickstream_volume.parquet'))
     df_clickstream_fluxes = df_clickstream.groupBy('date', 'volume_prev', 'volume_curr').agg(sum('count').alias('agg_counts'),
