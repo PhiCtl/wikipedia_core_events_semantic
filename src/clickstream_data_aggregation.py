@@ -45,8 +45,9 @@ def aggregate(df, df_ref, df_volumes):
     df = df.where((df.type != 'other') & ~df.prev.isin(['other-other', 'other-empty']))
 
     # Aggregate
-    df = df.groupBy('date', 'prev', 'curr', 'date').agg(sum('count').alias('count')).cache()
+    df = df.groupBy('date', 'prev', 'curr').agg(sum('count').alias('count')).cache()
     initial_links = df.count()
+    print(initial_links)
 
     # Match on ids and volumes
     # Match on page id first
@@ -65,6 +66,8 @@ def aggregate(df, df_ref, df_volumes):
         df.volume_prev.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])\
         & df.volume_curr.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])).cache()
     final_links = df.count()
+    print(final_links)
+
 
     print(f"Loss = {100 - final_links / initial_links * 100} %")
 
@@ -92,7 +95,7 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
     df_volumes = df_volumes.union(df_compl)
 
     df_ref = df_ref.select('page', 'page_id').distinct()
-    df_ref = df_ref.union(df_compl.select('page', 'page_id'))
+    df_ref = df_ref.union(df_compl.select('page', 'page_id').distinct())
 
     # Download data
     dfs = setup_data(ys, months, spark_session, path)
