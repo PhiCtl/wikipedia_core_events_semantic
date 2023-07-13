@@ -66,7 +66,7 @@ def aggregate(df, df_ref, df_volumes):
         & df.volume_curr.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])).cache()
     final_links = df.count()
 
-    print(f"Loss = {100 - initial_links / final_links * 100} %")
+    print(f"Loss = {100 - final_links / initial_links * 100} %")
 
     return df
 
