@@ -41,7 +41,8 @@ def aggregate(df, df_ref, df_volumes):
     df = df.where((df.type != 'other') & ~df.prev.isin(['other-other', 'other-empty']))
 
     # Aggregate
-    df = df.groupBy('date', 'prev', 'curr', 'date').agg(sum('count').alias('count'))
+    df = df.groupBy('date', 'prev', 'curr', 'date').agg(sum('count').alias('count')).cache()
+    initial_links = df.count()
 
     # Match on ids and volumes
     # Match on page id first
@@ -58,7 +59,10 @@ def aggregate(df, df_ref, df_volumes):
                                            coalesce('volume_curr', 'curr').alias('volume_curr'), 'count')
     df = df.where(
         df.volume_prev.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])\
-        & df.volume_curr.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external']))
+        & df.volume_curr.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])).cache()
+    final_links = df.count()
+
+    print(f"Loss = {100 - initial_links / final_links * 100} %")
 
     return df
 
@@ -90,7 +94,7 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
     dfs = setup_data(ys, ms, spark_session, path)
     df_clickstream = aggregate(dfs, df_ref, df_volumes).cache()
     df_clickstream.write.parquet(os.path.join(save_path, 'clickstream_volume.parquet'))
-    df_clickstream_fluxes = df_clickstream.groupBy('volume_prev', 'volume_curr').agg(sum('count').alias('agg_counts'),
+    df_clickstream_fluxes = df_clickstream.groupBy('date', 'volume_prev', 'volume_curr').agg(sum('count').alias('agg_counts'),
                                                                                      count('*').alias(
                                                                                          'nb_links')).cache()
     df_clickstream_fluxes.write.parquet(os.path.join(save_path, 'clickstream_fluxes.parquet'))
@@ -121,12 +125,12 @@ if __name__ == '__main__':
                         help='year',
                         nargs='+',
                         type=int,
-                        default=[2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022])
+                        default=[2022])
     parser.add_argument('--m',
                         help='months',
                         nargs='+',
                         type=int,
-                        default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+                        default=[1, 2, 3])
     parser.add_argument('--p',
                         help='path',
                         type=str,
@@ -139,20 +143,11 @@ if __name__ == '__main__':
                         help='save path',
                         type=str,
                         default="/scratch/descourt/processed_data/clickstream/en")
-    parser.add_argument('--dtype',
-                        help='data type, either pageviews or clickstream data',
-                        type=str,
-                        choices=['pageviews', 'clickstream'],
-                        default='pageviews')
-    parser.add_argument('--project',
-                        help='Project to download for clickstream data',
-                        type=str,
-                        default='en')
 
     args = parser.parse_args()
 
     os.makedirs(args.sp, exist_ok=True)
 
     make_links_dataset(ys=args.y, ms=args.m, spark_session=spark,
-                       path=args.path, ref_path=args.ref_path, save_path=args.save_path)
+                       path=args.p, ref_path=args.rp, save_path=args.sp)
 
