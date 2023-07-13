@@ -75,9 +75,9 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
 
     # Make ref datasets
     df_ref = spark.read.parquet(ref_path).withColumn('project', lit('en'))
-    df_high_volume = extract_volume(df_ref.where(df_ref.date.isin([dates])), high=True).select(
+    df_high_volume = extract_volume(df_ref.where(df_ref.date.isin(dates)), high=True).select(
         'date', 'page_id', 'page', lit('core').alias('volume'))
-    df_low_volume = extract_volume(df_ref.where(df_ref.date.isin([dates])), high=False).select(
+    df_low_volume = extract_volume(df_ref.where(df_ref.date.isin(dates)), high=False).select(
         'date', 'page_id', 'page', lit('tail').alias('volume'))
     df_volumes = df_high_volume.union(df_low_volume)
 
