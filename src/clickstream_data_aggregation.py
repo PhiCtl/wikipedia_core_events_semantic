@@ -14,6 +14,7 @@ from tqdm import tqdm
 from functools import reduce
 import sys
 sys.path.append('../')
+from src.pages_groups_extraction import extract_volume
 
 def setup_data(years, months, spark_session, path="/scratch/descourt/clickstream/en"):
     """
