@@ -16,6 +16,9 @@ import sys
 sys.path.append('../')
 from src.pages_groups_extraction import extract_volume
 
+import pandas as pd
+import numpy as np
+
 def setup_data(years, months, spark_session, path="/scratch/descourt/clickstream/en"):
     """
     Load and prepare wikipedia projects clickstream data for given year and month
