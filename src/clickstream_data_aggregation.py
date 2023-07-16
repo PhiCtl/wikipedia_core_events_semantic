@@ -57,8 +57,13 @@ def aggregate(df, df_volumes):
     final_links = df.count()
     print(final_links)
 
-    df = df.groupBy('date', 'curr', 'volume_curr').pivot('volume_prev').sum('count').fillna(0)
+    df = df.groupBy('date', 'curr', 'volume_curr') \
+           .pivot('volume_prev').sum('count').fillna(0) \
+           .withColumn('total-external', reduce(add, [col('other-external'), col('other-search')]))\
+           .withColumn('total',reduce(add,[col('other-external'),col('other-search'),col('core'),col('tail')])) \
+           .drop('other-internal')
     print(f"Loss = {100 - final_links / initial_links * 100} %")
+
     return df
 
 def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
@@ -86,7 +91,7 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
     # Download data
     dfs = setup_data(ys, months, spark_session, path)
     df_clickstream = aggregate(dfs, df_volumes).cache()
-    df_clickstream.write.parquet(os.path.join(save_path, 'clickstream_volume.parquet'))
+    df_clickstream.write.parquet(os.path.join(save_path, 'clickstream_grouped.parquet'))
 
 
 
