@@ -11,6 +11,7 @@ from pyspark.sql import *
 from pyspark.sql.functions import *
 
 from tqdm import tqdm
+from operator import add
 from functools import reduce
 import sys
 sys.path.append('../')
