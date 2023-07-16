@@ -50,10 +50,10 @@ def aggregate(df, df_volumes):
     print(initial_links)
 
     # Match on volumes
-    df = df.join(df_volumes.select('date', col('page_id').alias('id_prev'), col('volume').alias('volume_prev')),
-                  on=['date', 'id_prev']) \
-           .join(df_volumes.select('date', col('page_id').alias('id_curr'), col('volume').alias('volume_curr')),
-                  on=['date', 'id_curr'])
+    df = df.join(df_volumes.select('date', col('page').alias('prev'), col('volume').alias('volume_prev')),
+                  on=['date', 'prev']) \
+           .join(df_volumes.select('date', col('page').alias('currr'), col('volume').alias('volume_curr')),
+                  on=['date', 'curr'])
     final_links = df.count()
     print(final_links)
 
@@ -88,10 +88,6 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
     dfs = setup_data(ys, months, spark_session, path)
     df_clickstream = aggregate(dfs, df_volumes).cache()
     df_clickstream.write.parquet(os.path.join(save_path, 'clickstream_volume.parquet'))
-    df_clickstream_fluxes = df_clickstream.groupBy('date', 'volume_prev', 'volume_curr').agg(sum('count').alias('agg_counts'),
-                                                                                     count('*').alias(
-                                                                                         'nb_links')).cache()
-    df_clickstream_fluxes.write.parquet(os.path.join(save_path, 'clickstream_fluxes.parquet'))
 
 
 
