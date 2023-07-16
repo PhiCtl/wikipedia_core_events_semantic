@@ -39,7 +39,7 @@ def setup_data(years, months, spark_session, path="/scratch/descourt/clickstream
     print(f"Elapsed time {time.time() - start} s")
     return df
 
-def aggregate(df, df_ref, df_volumes):
+def aggregate(df, df_volumes):
 
     # Filter
     df = df.where((df.type != 'other') & ~df.prev.isin(['other-other', 'other-empty']))
@@ -49,22 +49,11 @@ def aggregate(df, df_ref, df_volumes):
     initial_links = df.count()
     print(initial_links)
 
-    # Match on ids and volumes
-    # Match on page id first
-    df = df.join(df_ref.select(col('page').alias('prev'), col('page_id').alias('id_prev')),
-                                         on='prev') \
-           .join(df_ref.select(col('page').alias('curr'), col('page_id').alias('id_curr')),
-                                         on='curr')
     # Match on volumes
     df = df.join(df_volumes.select('date', col('page_id').alias('id_prev'), col('volume').alias('volume_prev')),
-                  on=['date', 'id_prev'], how='left') \
+                  on=['date', 'id_prev']) \
            .join(df_volumes.select('date', col('page_id').alias('id_curr'), col('volume').alias('volume_curr')),
-                  on=['date', 'id_curr'], how='left')
-    df = df.select('date', 'prev', 'curr', coalesce('volume_prev', 'prev').alias('volume_prev'),
-                                           coalesce('volume_curr', 'curr').alias('volume_curr'), 'count')
-    df = df.where(
-        df.volume_prev.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])\
-        & df.volume_curr.isin(['tail', 'core', 'other-search', 'other-internal', 'other-external'])).cache()
+                  on=['date', 'id_curr'])
     final_links = df.count()
     print(final_links)
 
@@ -94,12 +83,10 @@ def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
     df_compl = spark.createDataFrame(pd_compls)
     df_volumes = df_volumes.union(df_compl)
 
-    df_ref = df_ref.select('page', 'page_id').distinct()
-    df_ref = df_ref.union(df_compl.select('page', 'page_id').distinct())
 
     # Download data
     dfs = setup_data(ys, months, spark_session, path)
-    df_clickstream = aggregate(dfs, df_ref, df_volumes).cache()
+    df_clickstream = aggregate(dfs, df_volumes).cache()
     df_clickstream.write.parquet(os.path.join(save_path, 'clickstream_volume.parquet'))
     df_clickstream_fluxes = df_clickstream.groupBy('date', 'volume_prev', 'volume_curr').agg(sum('count').alias('agg_counts'),
                                                                                      count('*').alias(
