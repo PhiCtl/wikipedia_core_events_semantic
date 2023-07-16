@@ -57,9 +57,8 @@ def aggregate(df, df_volumes):
     final_links = df.count()
     print(final_links)
 
-
+    df = df.groupBy('date', 'curr', 'volume_curr').pivot('volume_prev').sum('count').fillna(0)
     print(f"Loss = {100 - final_links / initial_links * 100} %")
-
     return df
 
 def make_links_dataset(ys, ms, spark_session, path, ref_path, save_path):
