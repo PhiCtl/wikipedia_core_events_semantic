@@ -52,7 +52,7 @@ def aggregate(df, df_volumes):
     # Match on volumes
     df = df.join(df_volumes.select('date', col('page').alias('prev'), col('volume').alias('volume_prev')),
                   on=['date', 'prev']) \
-           .join(df_volumes.select('date', col('page').alias('currr'), col('volume').alias('volume_curr')),
+           .join(df_volumes.select('date', col('page').alias('curr'), col('volume').alias('volume_curr')),
                   on=['date', 'curr'])
     final_links = df.count()
     print(final_links)
