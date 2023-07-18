@@ -71,7 +71,7 @@ def filter_data(df, projects, dates):
 def match_ids(df, latest_date, projects, raw_path=f'/scratch/descourt/raw_data/pageviews'):
     """
     Match page ids from latest date dataframe with pageids
-    Especially for data before 2015-12 because page ids weren't matched
+    Especially for data before 2015-12 because page ids are not present at that time
     """
 
     [y, m] = latest_date.split('-')
@@ -160,8 +160,7 @@ def aggregate_data(df, match_ids=True, match_ids_per_access_type=False):
                                                     first('page_id').alias('page_id'))
         df_agg = df_agg.where(~col('page_id').isNull() & ~(df_agg.page_id == 'null'))
     else:
-        df_agg = df.groupBy('project', 'date', 'page').agg(sum("counts").alias('tot_count_views'),
-                                                first('page_id').alias('page_id'))
+        df_agg = df.groupBy('project', 'date', 'page', 'page_id').agg(sum("counts").alias('tot_count_views'))
 
     # 4. Rank titles
     window = Window.partitionBy('project', 'date').orderBy(col("tot_count_views").desc())
