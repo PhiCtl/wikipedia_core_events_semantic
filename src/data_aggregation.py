@@ -58,57 +58,13 @@ def filter_data(df, projects, dates):
     :param dates: list of strings of format YYYY-MM
     """
 
-    specials_to_filt = ['Main_Page', '-', 'Search']
     df_filt = df.where(df.project.isin([l+'.wikipedia' for l in projects])) \
         .filter(df.date.isin(dates)) \
         .select(col('page').alias('page'), col('counts').cast('float'), 'date', 'page_id', 'access_type',
                 split('project',  '\.')[0].alias('project') )
 
     # Filter articles namespace
-    if 'en' in projects and len(projects) == 1:
-        df_filt = df_filt.filter(~df_filt.page.contains('User:') & \
-                                 ~df_filt.page.contains('Wikipedia:') & \
-                                 ~df_filt.page.contains('File:') & \
-                                 ~df_filt.page.contains('MediaWiki:') & \
-                                 ~df_filt.page.contains('Template:') & \
-                                 ~df_filt.page.contains('Help:') & \
-                                 ~df_filt.page.contains('Category:') & \
-                                 ~df_filt.page.contains('Portal:') & \
-                                 ~df_filt.page.contains('Draft:') & \
-                                 ~df_filt.page.contains('TimedText:') & \
-                                 ~df_filt.page.contains('Module:') & \
-                                 ~df_filt.page.contains('Special:') & \
-                                 ~df_filt.page.contains('Media:') & \
-                                 ~df_filt.page.contains('Talk:') & \
-                                 ~df_filt.page.contains('talk:') & \
-                                 ~df_filt.page.isin(specials_to_filt) \
-                                 & (df_filt.counts >= 1))
-        return df_filt
-    elif 'fr' in projects and len(projects) == 1:
-        df_filt = df_filt.filter(~df_filt.page.contains('Utilisateur:') & \
-                                 ~df_filt.page.contains('Wikipédia:') & \
-                                 ~df_filt.page.contains('Fichier:') & \
-                                 ~df_filt.page.contains('MediaWiki:') & \
-                                 ~df_filt.page.contains('Modèle:') & \
-                                 ~df_filt.page.contains('Aide:') & \
-                                 ~df_filt.page.contains('Catégorie:') & \
-                                 ~df_filt.page.contains('Portail:') & \
-                                 ~df_filt.page.contains('Projet:') & \
-                                 ~df_filt.page.contains('TimedText') & \
-                                 ~df_filt.page.contains('Référence:') & \
-                                 ~df_filt.page.contains('Module:') & \
-                                 ~df_filt.page.contains('Gadget:') & \
-                                 ~df_filt.page.contains('Sujet:') & \
-                                 ~df_filt.page.contains('Discussion') & \
-                                 ~df_filt.page.contains('Spécial') & \
-                                 ~df_filt.page.isin(specials_to_filt) \
-                                 & (df_filt.counts >= 1))
-        return df_filt
-    # TODO too coarse, find another way !
-    else :
-        df_filt = df_filt.where(~df_filt.page.contains(':') & ~df_filt.page.isin(specials_to_filt)\
-                                & (df_filt.counts >= 1))
-
+    df_filt = per_project_filt(df_filt, projects)
     return df_filt
 
 
