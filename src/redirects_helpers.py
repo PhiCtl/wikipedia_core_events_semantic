@@ -126,9 +126,7 @@ def per_project_filt(df, projects):
                                  ~df.page.contains('Special:') & \
                                  ~df.page.contains('Media:') & \
                                  ~df.page.contains('Talk:') & \
-                                 ~df.page.contains('talk:') & \
-                                 ~df.page.isin(specials_to_filt) \
-                                 & (df.counts >= 1))
+                                 ~df.page.contains('talk:'))
     elif 'fr' in projects:
         df = df.filter(~df.page.contains('Utilisateur:') & \
                                  ~df.page.contains('Wikipédia:') & \
@@ -145,8 +143,7 @@ def per_project_filt(df, projects):
                                  ~df.page.contains('Gadget:') & \
                                  ~df.page.contains('Sujet:') & \
                                  ~df.page.contains('Discussion') & \
-                                 ~df.page.contains('Spécial') & \
-                                 ~df.page.isin(specials_to_filt) \
+                                 ~df.page.contains('Spécial') \
                                  & (df.counts >= 1))
 
     elif 'ru' in projects:
