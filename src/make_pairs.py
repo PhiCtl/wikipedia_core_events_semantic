@@ -19,25 +19,45 @@ import pyspark
 
 from data_aggregation import*
 
-def extract_pairs(path='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet',
-                  precision=0.95):
+def extract_pairs(path_nbarticles='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet',
+                  path_nbviews='/scratch/descourt/raw_data/pageviews',
+                  precision=0.90):
 
     def compute_ratio(item):
         return Row(
-            lang1=item[0][0].split('wiki')[0],
-            lang2=item[1][0].split('wiki')[0],
-            ratio=float(np.abs(np.log(item[0][1] / item[1][1]))))
+            lang1=item[0][0],
+            lang2=item[1][0],
+            ratio_articles=float(np.abs(np.log(item[0][1] / item[1][1]))),
+            ratio_views=float(np.abs(np.log(item[0][2] / item[1][2]))),
+            nbarticles_1=item[0][1],
+            nbarticles_2=item[1][1],
+            nbviews_1=item[0][2],
+            nbviews_2=item[1][2],
+        )
 
-    df_metadata_all = spark.read.parquet(path)
-    nb_articles_per_languages = df_metadata_all.groupBy('wiki_db').agg(countDistinct('page_id').alias('nb_articles'))
-    nb_articles_per_languages = nb_articles_per_languages.where(nb_articles_per_languages.wiki_db != 'nostalgiawiki')
+    df_projects = spark.read.parquet(path_nbarticles)\
+                       .select(split('wiki_db', 'wiki')[0].alias('project'), 'page_id', 'page_title')
+    df_nov22 = setup_data([2022], [11], spark, path=path_nbviews)
+    df_nov22 = df_nov22.where(df_nov22.project.contains('.wikipedia')) \
+                       .groupBy('project', 'page', 'page_id').agg(sum('counts').alias('counts'))\
+                       .select(split('project', '.wikipedia')[0].alias('project'),
+                               col('page').alias('page_title'),
+                               'page_id',
+                               'counts')
+    df_filt_nov22 = df_nov22.join(df_projects, on=['project', 'page_title', 'page_id'], how='right')
+    df_agg_nov_22 = df_filt_nov22.groupBy('project').agg(count('*').alias('nb_articles'),
+                                                         sum('counts').alias('nb_views')) \
+                                  .dropna(subset='nb_views').cache()
 
-    # make pairs
-    pairs = nb_articles_per_languages.rdd.map(tuple).cartesian(nb_articles_per_languages.rdd.map(tuple))
+    pairs = df_agg_nov_22.rdd.map(tuple).cartesian(df_agg_nov_22.rdd.map(tuple))
     ratio_df = pairs.map(lambda r: compute_ratio(r)).toDF()
-    matching_lang = ratio_df.where((col('ratio') != 0) & (col('ratio') <= -log(lit(precision))))\
-                            .select( array_sort(array(col('lang1'), col('lang2'))).alias('pairs'), 'lang1', 'lang2')\
-                            .dropDuplicates(['pairs']).cache()
+    matching_lang = ratio_df.where(
+        (col('ratio_articles') != 0) & (col('ratio_articles') <= -log(lit(precision)))
+        & (col('ratio_views') != 0) & (col('ratio_views') <= -log(lit(precision)))) \
+        .select(array_sort(array(col('lang1'), col('lang2'))).alias('pairs'), 'lang1', 'lang2', 'nbarticles_1',
+                'nbarticles_2', 'nbviews_1', 'nbviews_2') \
+        .dropDuplicates(['pairs']).cache()
+
     return matching_lang
 
 if __name__ == '__main__':
@@ -69,7 +89,7 @@ if __name__ == '__main__':
                         default='/scratch/descourt/spark')
     parser.add_argument('--save_path',
                         type=str,
-                        default='/scratch/descourt/processed_data/multieditions')
+                        default='/scratch/descourt/processed_data/pairs')
     parser.add_argument('--metadata_dir',
                         type=str,
                         default='/scratch/descourt/metadata/akhils_data/wiki_nodes_bsdk_phili_2022-11.parquet')
@@ -94,25 +114,39 @@ if __name__ == '__main__':
     # Dates
     dates = [f"{year}-{month}" for year in args.years for month in args.months]
 
-    # Meta Data
-    df_metadata = spark.read.parquet(args.metadata_dir)
-
     ## 1 - Extract editions pairs with matching number of articles
     assert( 0 <= args.precision <= 1.0), 'Precision must be between 0 and 1'
     match_langs = extract_pairs(precision=args.precision)
-    editions = match_langs.select(col('lang1').alias('project'))\
-                            .unionAll(match_langs.select(col('lang2').alias('project')))\
-                            .dropDuplicates(['project'])
-    dfs_pairs = match_langs.union(match_langs.select(array(col('pairs')[1], col('pairs')[0]).alias('pairs'),
-                                                     'lang1', 'lang2'))
-    projects = [p['project'] for p in editions.select('project').collect()]
+    matching_lang.write.parquet(os.path.join(args.save_path, 'pairs_10perc_nov22.parquet'))
 
-    ## 2 - Download needed data and filter per project
+    # We filter the top 7 pairs in terms of nb of articles
+    # TODO increase the number of available editions
+    selected_langs = matching_lang.sort(desc('nbarticles_1')).limit(7)
+    projects = [p['lang'] for p in selected_langs.select(explode('pairs').alias('lang')).distinct().collect()]
+    dfs_pairs = selected_langs.select('pairs', 'lang1', 'lang2')\
+                              .union(selected_langs.select(array(col('pairs')[1], col('pairs')[0]).alias('pairs'),
+                                     'lang1', 'lang2'))
+
+    ## 2 - Download needed data and filter per project and add item id
     dfs = setup_data(years=args.years, months=args.months, spark_session=spark,
                      path="/scratch/descourt/raw_data/pageviews")
+    # Meta Data with project, page id and item id (same across editions)
+    df_metadata = spark.read.parquet(args.metadata_dir)\
+                       .select((split('wiki_db', 'wiki')[0]).alias('project'),
+                               'page_id', 'item_id') \
+                       .join(selected_langs.select(explode('pairs').alias('project')).distinct(), on='project').cache()
 
-    df_filt = filter_data(dfs, projects, dates=dates)
-    df_agg = aggregate_data(df_filt).cache()
+
+    df_filt = dfs.select(split('project', '.wikipedia')[0].alias('project'),
+                         'date', 'page', 'page_id', 'counts') \
+                 .groupBy('date', 'project', 'page', 'page_id').agg(sum('counts').alias('counts'))
+    df_agg = df_filt.join(df_metadata, on=['project', 'page_id']) \
+                    .groupBy('date', 'project', 'page_id', 'item_id')\
+                    .agg(sum('counts').alias('counts'))
+
+    # Make ranking for volume computation
+    window = Window.partitionBy('project', 'date').orderBy(col("counts").desc())
+    df_agg = df_agg.withColumn("rank", row_number().over(window))
 
     # Extract volumes
     df_high_volume = extract_volume(df_agg, high=True).select('date', 'page_id', 'item_id', 'project')
@@ -147,15 +181,13 @@ if __name__ == '__main__':
     ## 4 - Find matching pairs for which exactly 1 article out of two was in the tail before
     w = Window.partitionBy('pairs', 'item_id', 'date')
     df_high_pairs = df_high_pairs.join(df_whenintail, on=['project', 'item_id', 'date'], how='left') \
-        .select(coalesce(col('when_in_tail'), array(to_date(lit('2023-01'), 'yyyy-MM'))).alias('when_in_tail'),
+        .select(coalesce(col('when_in_tail'), array(to_date(lit('2024-01'), 'yyyy-MM'))).alias('when_in_tail'),
                 'project', 'item_id', 'date', 'pairs', 'when_in_core')
     df_high_pairs = df_high_pairs\
         .select('date', 'item_id', 'pairs', 'project',
                 when((element_at(col('when_in_tail'), -1) == add_months(col('date'), -1)), 1).otherwise(0).alias('was_in_tail')) \
         .select(sum('was_in_tail').over(w).alias('intail'), 'date', 'project', 'item_id', 'was_in_tail')
 
-    df_agg.write.parquet(os.path.join(args.save_path, f"pageviews_agg_all.parquet"))
-    match_langs.write.parquet(os.path.join(args.save_path, f"pairs_{args.precision}.parquet"))
     df_high_pairs.where('intail = "1"').write.parquet(os.path.join(args.save_path, f"matchedpairs_{args.precision}.parquet"))
 
 
