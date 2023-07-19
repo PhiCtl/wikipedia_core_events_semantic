@@ -109,7 +109,7 @@ def invert_mapping(inv_map, ids):
 
 def per_project_filt(df, projects):
 
-    df = df.filter(~df.page.contains('-') & (df.counts >= 1))
+    df = df.filter(~df.page.isin(['Main_Page', '-', 'Search']) & (df.counts >= 1))
 
     if 'en' in projects:
         df = df.filter(~df.page.contains('User:') & \
