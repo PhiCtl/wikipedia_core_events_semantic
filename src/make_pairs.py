@@ -139,13 +139,14 @@ if __name__ == '__main__':
 
     df_filt = dfs.select(split('project', '.wikipedia')[0].alias('project'),
                          'date', 'page', 'page_id', 'counts') \
-                 .groupBy('date', 'project', 'page', 'page_id').agg(sum('counts').alias('counts'))
+                 .groupBy('date', 'project', 'page', 'page_id')\
+                 .agg(sum('counts').alias('tot_count_views'))
     df_agg = df_filt.join(df_metadata, on=['project', 'page_id']) \
                     .groupBy('date', 'project', 'page_id', 'item_id')\
-                    .agg(sum('counts').alias('counts'))
+                    .agg(sum('counts').alias('tot_count_views'))
 
     # Make ranking for volume computation
-    window = Window.partitionBy('project', 'date').orderBy(col("counts").desc())
+    window = Window.partitionBy('project', 'date').orderBy(col("tot_count_views").desc())
     df_agg = df_agg.withColumn("rank", row_number().over(window))
 
     # Extract volumes
@@ -155,7 +156,6 @@ if __name__ == '__main__':
     ## 3 - Match pairs
     def make_pairs(langs):
         return [list(p) for p in combinations(langs, 2)]
-
 
     make_pairs_udf = udf(make_pairs, ArrayType(ArrayType(StringType())))
     df_high_pairs = df_high_volume.groupby('date', 'item_id')\
