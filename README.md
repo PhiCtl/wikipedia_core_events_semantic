@@ -93,5 +93,6 @@ Raw metadata are located under `/scratch/descourt/metadata`. To process them for
 ## Additional work
 
 * Work on False positive is available in `Data_presentation.ipynb`
-* Work on pairs matching is available in `Pairs.ipynb`. Pairs were extracted running the command `python make_pairs.py --memory 120`. Note that core versus tail estimation is biased because we filtered out all pages containing a colon to filter main namespace pages, and this is wrong. In future work, another dataset should be considered such as hourly or daily pageviews, in which it becomes easier to filter main namespace. 
+* `Pairs.ipynb` is not up to date !! So don't consider using the code in it. On the contrary, the code to make pairs under `src/make_pairs.py` is the latest one. 
+* Work on the second observational study is available in `Core_tail_links.ipynb` notebook. 
 
