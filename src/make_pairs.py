@@ -119,12 +119,10 @@ if __name__ == '__main__':
     match_langs = extract_pairs(precision=args.precision)
     matching_lang.write.parquet(os.path.join(args.save_path, 'pairs_10perc_nov22.parquet'))
 
-    # We filter the top 7 pairs in terms of nb of articles
-    # TODO increase the number of available editions
-    selected_langs = matching_lang.sort(desc('nbarticles_1')).limit(7)
-    projects = [p['lang'] for p in selected_langs.select(explode('pairs').alias('lang')).distinct().collect()]
-    dfs_pairs = selected_langs.select('pairs', 'lang1', 'lang2')\
-                              .union(selected_langs.select(array(col('pairs')[1], col('pairs')[0]).alias('pairs'),
+    # selected_langs = matching_lang.sort(desc('nbarticles_1')).limit(7)
+    projects = [p['lang'] for p in matching_lang.select(explode('pairs').alias('lang')).distinct().collect()]
+    dfs_pairs = matching_lang.select('pairs', 'lang1', 'lang2')\
+                              .union(matching_lang.select(array(col('pairs')[1], col('pairs')[0]).alias('pairs'),
                                      'lang1', 'lang2'))
 
     ## 2 - Download needed data and filter per project and add item id
