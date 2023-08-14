@@ -37,6 +37,7 @@ def extract_pairs(path_nbarticles='/scratch/descourt/metadata/akhils_data/wiki_n
 
     df_projects = spark.read.parquet(path_nbarticles)\
                        .select(split('wiki_db', 'wiki')[0].alias('project'), 'page_id', 'page_title')
+    
     df_nov22 = setup_data([2022], [11], spark, path=path_nbviews)
     df_nov22 = df_nov22.where(df_nov22.project.contains('.wikipedia')) \
                        .groupBy('project', 'page', 'page_id').agg(sum('counts').alias('counts'))\
@@ -44,10 +45,9 @@ def extract_pairs(path_nbarticles='/scratch/descourt/metadata/akhils_data/wiki_n
                                col('page').alias('page_title'),
                                'page_id',
                                'counts')
-    df_filt_nov22 = df_nov22.join(df_projects, on=['project', 'page_title', 'page_id'], how='right')
+    df_filt_nov22 = df_nov22.join(df_projects, on=['project', 'page_title', 'page_id'])
     df_agg_nov_22 = df_filt_nov22.groupBy('project').agg(count('*').alias('nb_articles'),
-                                                         sum('counts').alias('nb_views')) \
-                                  .dropna(subset='nb_views').cache()
+                                                         sum('counts').alias('nb_views')).cache()
 
     pairs = df_agg_nov_22.rdd.map(tuple).cartesian(df_agg_nov_22.rdd.map(tuple))
     ratio_df = pairs.map(lambda r: compute_ratio(r)).toDF()
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     assert( 0 <= args.precision <= 1.0), 'Precision must be between 0 and 1'
     match_langs = extract_pairs(precision=args.precision)
     matching_lang.write.parquet(os.path.join(args.save_path, 'pairs_10perc_nov22.parquet'))
-
+    # Extract all possible pairs, accounting for each pair twice (with permutation)
     # selected_langs = matching_lang.sort(desc('nbarticles_1')).limit(7)
     projects = [p['lang'] for p in matching_lang.select(explode('pairs').alias('lang')).distinct().collect()]
     dfs_pairs = matching_lang.select('pairs', 'lang1', 'lang2')\
@@ -129,13 +129,16 @@ if __name__ == '__main__':
     dfs = setup_data(years=args.years, months=args.months, spark_session=spark,
                      path="/scratch/descourt/raw_data/pageviews")
     # Meta Data with project, page id and item id (same across editions)
+    # Select only language editions on wanted pairs languages
     df_metadata = spark.read.parquet(args.metadata_dir)\
                        .select((split('wiki_db', 'wiki')[0]).alias('project'),
                                'page_id', 'item_id') \
                        .join(matching_lang.select(explode('pairs').alias('project')).distinct(), on='project').cache()
 
-
-    df_filt = dfs.select(split('project', '.wikipedia')[0].alias('project'),
+    # Parse and keep only projects from pairs of interest
+    # Keep pages for which we have null views (different from previous core / tail processing !)
+    df_filt = dfs.where(dfs.project.contains('.wikipedia')).fillna(0, subset='counts')\
+                 .select(split('project', '.wikipedia')[0].alias('project'),
                          'date', 'page', 'page_id', 'counts') \
                  .groupBy('date', 'project', 'page', 'page_id')\
                  .agg(sum('counts').alias('tot_count_views'))
@@ -155,6 +158,7 @@ if __name__ == '__main__':
     def make_pairs(langs):
         return [list(p) for p in combinations(langs, 2)]
 
+    # For each item id and each date, find all the possible pairs combinations (without permutation)
     make_pairs_udf = udf(make_pairs, ArrayType(ArrayType(StringType())))
     df_high_pairs = df_high_volume.groupby('date', 'item_id')\
                                   .agg(collect_set('project').alias('langs'))\
@@ -163,6 +167,7 @@ if __name__ == '__main__':
     # Retrieve since when article is in core or in tail
     w = Window.partitionBy('project', 'item_id').orderBy(asc('date'))
     df_high_volume = df_high_volume.withColumn('when_in_core', array_sort(collect_set('date').over(w)))
+    # Date here is actually the next one (= current date in tail + 1) for matching purposes
     df_whenintail = df_low_volume.select(add_months(col('date'), 1).alias('date'), 'item_id', 'project',
                                          array_sort(collect_set('date').over(w)).alias('when_in_tail'))
 
@@ -170,22 +175,29 @@ if __name__ == '__main__':
     df_high_pairs = df_high_pairs.join(dfs_pairs, on='pairs') \
                                 .select('date', 'item_id', 'pairs', explode('pairs').alias('project')) \
                                 .join(df_high_volume, on=['project', 'item_id', 'date'])\
-                                .where(col('date') == col('when_in_core')[0])
+                                .where(col('date') == col('when_in_core')[0]) # when_in_core is a sorted array of dates
     df_high_pairs_agg = df_high_pairs.groupBy('date', 'item_id', 'pairs').\
                                      agg(count('*').alias('first_time_core'))
     df_high_pairs = df_high_pairs.join(df_high_pairs_agg, on=['date', 'item_id', 'pairs'])\
                                  .where('first_time_core = "2"').drop('first_time_core')
 
     ## 4 - Find matching pairs for which exactly 1 article out of two was in the tail before
+    # Add ficticious future date for articles which weren't reported as being in the tail before (because they didn't exist at month d-1)
     w = Window.partitionBy('pairs', 'item_id', 'date')
     df_high_pairs = df_high_pairs.join(df_whenintail, on=['project', 'item_id', 'date'], how='left') \
         .select(coalesce(col('when_in_tail'), array(to_date(lit('2024-01'), 'yyyy-MM'))).alias('when_in_tail'),
                 'project', 'item_id', 'date', 'pairs', 'when_in_core')
+    # when_in_tail is a sorted array of dates
+    # For each data point in the core for the first time at a given date d, if the last date of when_in_tail is exactly d - 1 (months),
+    # Then this item "was_in_tail" the month before. Since we have here only pairs for which d is the first date in the core
+    # The considered item was necessarily either in the tail the month before, either not yet existing on Wikipedia
     df_high_pairs = df_high_pairs\
         .select('date', 'item_id', 'pairs', 'project',
                 when((element_at(col('when_in_tail'), -1) == add_months(col('date'), -1)), 1).otherwise(0).alias('was_in_tail')) \
         .select(sum('was_in_tail').over(w).alias('intail'), 'date', 'project', 'item_id', 'was_in_tail')
-
+    # in_tail is either 0 if for both pairs item the corresponding article wasn't existing before d
+    #                   1 if for exactly 1 language the corresponding article was in the tail the month before
+    #                   2 if both were in the tail at d - 1
     df_high_pairs.where('intail = "1"').write.parquet(os.path.join(args.save_path, f"matchedpairs_{args.precision}.parquet"))
 
 
