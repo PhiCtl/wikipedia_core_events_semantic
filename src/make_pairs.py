@@ -132,7 +132,7 @@ if __name__ == '__main__':
     df_metadata = spark.read.parquet(args.metadata_dir)\
                        .select((split('wiki_db', 'wiki')[0]).alias('project'),
                                'page_id', 'item_id') \
-                       .join(selected_langs.select(explode('pairs').alias('project')).distinct(), on='project').cache()
+                       .join(matching_lang.select(explode('pairs').alias('project')).distinct(), on='project').cache()
 
 
     df_filt = dfs.select(split('project', '.wikipedia')[0].alias('project'),
